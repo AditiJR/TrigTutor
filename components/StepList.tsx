@@ -7,45 +7,83 @@ type Props = {
   steps: Step[]
 }
 
-const STATUS_STYLES: Record<ValidationStatus, string> = {
-  correct: 'border-correct/30 bg-correct/5 text-correct',
-  incorrect: 'border-incorrect/30 bg-incorrect/5 text-incorrect',
-  unparseable: 'border-unparseable/30 bg-unparseable/5 text-unparseable',
-  equivalent_to_earlier: 'border-equivalent/30 bg-equivalent/5 text-equivalent'
-}
-
-const STATUS_LABEL: Record<ValidationStatus, string> = {
-  correct: 'Correct',
-  incorrect: 'Needs another look',
-  unparseable: 'Try rephrasing',
-  equivalent_to_earlier: 'Same as earlier'
+const STATUS_CONFIG: Record<
+  ValidationStatus,
+  { icon: string; iconFill: boolean; chipClass: string; label: string; mathClass?: string }
+> = {
+  correct: {
+    icon: 'check_circle',
+    iconFill: true,
+    chipClass: 'bg-correct/10 text-correct border-correct/20',
+    label: 'Correct'
+  },
+  incorrect: {
+    icon: 'cancel',
+    iconFill: true,
+    chipClass: 'bg-error-container/50 text-incorrect border-error-container',
+    label: 'Needs another look',
+    mathClass: 'line-through decoration-incorrect/50 decoration-2'
+  },
+  unparseable: {
+    icon: 'help',
+    iconFill: false,
+    chipClass: 'bg-warning/10 text-warning border-warning/20',
+    label: 'Try rephrasing'
+  },
+  equivalent_to_earlier: {
+    icon: 'sync',
+    iconFill: false,
+    chipClass: 'bg-equivalent/10 text-equivalent border-equivalent/20',
+    label: 'Same as earlier'
+  }
 }
 
 export function StepList({ steps }: Props) {
   if (steps.length === 0) {
     return (
-      <p className="text-sm italic text-slate-500">
+      <p className="font-body-sm text-body-sm italic text-secondary px-1">
         No steps yet — write your first step below.
       </p>
     )
   }
 
   return (
-    <ol className="space-y-3">
+    <ol className="flex flex-col gap-stack-md list-none p-0 m-0">
       {steps.map((step, idx) => {
         const status = step.validation?.status
-        const styleClass =
-          status && STATUS_STYLES[status] ? STATUS_STYLES[status] : 'border-slate-200 bg-white'
+        const config = status ? STATUS_CONFIG[status] : null
+
         return (
           <li
             key={step.id}
-            className={`rounded-lg border p-3 shadow-sm ${styleClass}`}
+            className="bg-surface border border-border-subtle shadow-sm rounded-lg p-stack-sm flex flex-col gap-stack-sm"
           >
-            <div className="mb-1 flex items-center justify-between text-xs">
-              <span className="font-semibold">Step {idx + 1}</span>
-              <span>{status ? STATUS_LABEL[status] : 'Pending…'}</span>
+            {/* Header row */}
+            <div className="flex justify-between items-center border-b border-border-subtle pb-2">
+              <span className="font-label text-label text-outline">Step {idx + 1}</span>
+              {config ? (
+                <div
+                  className={`px-3 py-1 rounded-full flex items-center gap-1 font-label text-label border ${config.chipClass}`}
+                >
+                  <span
+                    className="material-symbols-outlined text-[16px]"
+                    style={config.iconFill ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                  >
+                    {config.icon}
+                  </span>
+                  {config.label}
+                </div>
+              ) : (
+                <span className="font-label text-label text-secondary">Pending…</span>
+              )}
             </div>
-            <InlineMath math={step.latex} />
+
+            {/* Math expression */}
+            <div
+              className={`font-math text-math text-center py-stack-sm text-on-surface ${config?.mathClass ?? ''}`}
+            >
+              <InlineMath math={step.latex} />
+            </div>
           </li>
         )
       })}

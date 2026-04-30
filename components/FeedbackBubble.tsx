@@ -8,21 +8,37 @@ type Props = {
 
 export function FeedbackBubble({ feedback }: Props) {
   return (
-    <aside className="rounded-lg border border-blue-200 bg-blue-50 p-4 shadow-sm">
-      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-blue-600">
-        Tutor
+    <div className="bg-surface-bright border border-border-subtle border-l-4 border-l-primary-container shadow-sm rounded-r-lg rounded-l-sm p-stack-md flex flex-col gap-stack-sm ml-2 relative">
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-1 text-primary-container">
+        <span
+          className="material-symbols-outlined"
+          style={{ fontVariationSettings: "'FILL' 1" }}
+        >
+          school
+        </span>
+        <span className="font-label text-label">Tutor Hint</span>
       </div>
-      <p className="text-base leading-snug text-slate-900">
-        {feedback.socraticHint}
-      </p>
+
+      {/* Hint */}
+      <p className="font-body text-body text-on-surface">{feedback.socraticHint}</p>
+
+      {/* Encouragement */}
       {feedback.encouragement && (
-        <p className="mt-1 text-sm text-blue-700">{feedback.encouragement}</p>
-      )}
-      {feedback.conceptToReview && (
-        <p className="mt-2 text-xs text-slate-500">
-          Concept: {feedback.conceptToReview.replace(/_/g, ' ')}
+        <p className="font-body-sm text-body-sm text-secondary italic mt-1">
+          {feedback.encouragement}
         </p>
       )}
-    </aside>
+
+      {/* Concept chip */}
+      {feedback.conceptToReview && (
+        <div className="mt-2">
+          <span className="bg-surface-container text-on-surface-variant px-3 py-1.5 rounded-full font-label text-label border border-border-subtle inline-flex items-center gap-1">
+            <span className="material-symbols-outlined text-[14px]">local_library</span>
+            {feedback.conceptToReview.replace(/_/g, ' ')}
+          </span>
+        </div>
+      )}
+    </div>
   )
 }

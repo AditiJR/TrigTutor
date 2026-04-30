@@ -17,10 +17,15 @@ import logging
 import os
 from typing import List, Optional
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from latex_parser import LatexParseError, parse_latex_safe
+from local_ocr import (
+    get_import_error as ocr_import_error,
+    is_available as ocr_is_available,
+    run_ocr,
+)
 from trig_validator import (
     EquivalenceResult,
     SimplifyResult,
@@ -87,7 +92,56 @@ class SimplifyResponse(BaseModel):
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "service": "trig-validator"}
+    available = ocr_is_available()
+    return {
+        "ok": True,
+        "service": "trig-validator",
+        "ocr_available": available,
+        "ocr_import_error": None if available else ocr_import_error(),
+    }
+
+
+class OcrResponse(BaseModel):
+    latex: str
+    confidence: float
+    raw_text: str
+    provider: str  # "pix2tex" | "unavailable"
+
+
+@app.post("/ocr", response_model=OcrResponse)
+async def ocr(
+    image: UploadFile = File(...),
+    x_service_token: Optional[str] = Header(default=None, alias="X-Service-Token"),
+) -> OcrResponse:
+    """Local image → LaTeX via pix2tex (LaTeX-OCR).
+
+    Returns provider="unavailable" with empty fields if pix2tex isn't installed
+    in this environment.  The Next.js layer interprets that as "fall back to
+    manual entry on the confirm screen".
+    """
+    _check_token(x_service_token)
+
+    if not ocr_is_available():
+        return OcrResponse(
+            latex="", confidence=0.0, raw_text="", provider="unavailable"
+        )
+
+    image_bytes = await image.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="empty_image")
+
+    result = run_ocr(image_bytes)
+    if result is None:
+        return OcrResponse(
+            latex="", confidence=0.0, raw_text="", provider="unavailable"
+        )
+
+    return OcrResponse(
+        latex=result.latex,
+        confidence=result.confidence,
+        raw_text=result.raw_text,
+        provider="pix2tex",
+    )
 
 
 @app.post("/validate", response_model=ValidateResponse)

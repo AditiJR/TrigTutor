@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { runMathpixOcr } from '@/lib/mathpix'
+import { runGeminiVisionOcr } from '@/lib/geminiVision'
 import { checkRateLimit } from '@/lib/rateLimit'
+import type { OcrProvider, OcrResult } from '@/lib/types'
 
 export const runtime = 'nodejs'
 
+/**
+ * OCR endpoint. Uses Gemini Flash Vision (GOOGLE_AI_API_KEY) as the primary
+ * provider. Falls back to manual entry if no key is configured.
+ *
+ * Free tier: 15 req/min, no credit card required.
+ * Get a key at https://aistudio.google.com/apikey
+ */
 export async function POST(req: NextRequest) {
   const rate = checkRateLimit(req, 'ocr')
   if (!rate.ok) {
@@ -25,21 +33,43 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'image_field_required' }, { status: 400 })
   }
 
-  const configured = Boolean(
-    process.env.MATHPIX_APP_ID && process.env.MATHPIX_APP_KEY
-  )
+  const geminiConfigured = Boolean(process.env.GOOGLE_AI_API_KEY)
 
-  try {
-    const result = await runMathpixOcr(file)
-    return NextResponse.json({
-      latex: result.latex,
-      confidence: result.confidence,
-      rawText: result.rawText,
-      configured,
-      needsConfirmation: !configured || result.confidence < 0.85
-    })
-  } catch (err) {
-    console.error('Mathpix OCR failed:', err)
-    return NextResponse.json({ error: 'ocr_failed' }, { status: 502 })
+  let result: OcrResult | null = null
+  const provider: OcrProvider = geminiConfigured ? 'gemini-vision' : 'none'
+
+  if (geminiConfigured) {
+    try {
+      const gv = await runGeminiVisionOcr(file)
+      if (gv.latex.trim() || gv.diagram) {
+        result = gv
+      }
+    } catch (err) {
+      console.error('[ocr] Gemini Vision failed:', err)
+      return NextResponse.json({ error: 'ocr_failed' }, { status: 502 })
+    }
   }
+
+  // No result or no API key → manual entry
+  if (!result) {
+    return NextResponse.json({
+      latex: '',
+      confidence: 0,
+      rawText: '',
+      diagram: null,
+      provider: 'none' as OcrProvider,
+      configured: geminiConfigured,
+      needsConfirmation: true
+    })
+  }
+
+  return NextResponse.json({
+    latex: result.latex,
+    confidence: result.confidence,
+    rawText: result.rawText,
+    diagram: result.diagram ?? null,
+    provider,
+    configured: geminiConfigured,
+    needsConfirmation: result.confidence < 0.85
+  })
 }

@@ -1,8 +1,8 @@
+@import 'katex/dist/katex.min.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import 'katex/dist/katex.min.css';
 
 :root {
   color-scheme: light;
@@ -14,20 +14,49 @@ body {
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply bg-background text-on-background antialiased;
+  font-family: var(--font-inter), sans-serif;
 }
 
+/* Material Symbols base variation settings.
+ * font-feature-settings: 'liga' is what turns the text "star" into an icon.
+ * We declare a font-family chain so the font is requested on every span,
+ * not only when the @font-face is fetched. */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined', sans-serif;
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  user-select: none;
+}
+
+/* MathLive math-field base styles */
 math-field {
+  display: block;
   width: 100%;
-  min-height: 3rem;
-  border: 1px solid theme('colors.slate.300');
+  min-height: 3.5rem;
+  background: #ffffff;
+  border: 1px solid #c3c6d7;
   border-radius: 0.5rem;
   padding: 0.5rem 0.75rem;
   font-size: 1.125rem;
-  background: white;
+  color: #191b23;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-math-field:focus {
-  outline: 2px solid theme('colors.blue.500');
-  outline-offset: 2px;
+math-field:focus-within {
+  outline: none;
+  border-color: #004ac6;
+  box-shadow: 0 0 0 3px rgba(0, 74, 198, 0.15);
 }

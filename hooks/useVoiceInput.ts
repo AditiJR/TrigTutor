@@ -39,7 +39,9 @@ export function useVoiceInput({ onResult, lang = 'en-US' }: Options) {
   const [supported, setSupported] = useState(true)
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
   const transcriptRef = useRef('')
-  const shouldProcessOnEndRef = useRef(false)
+  // Use a ref for state so start/stop callbacks never have stale closures —
+  // React batches setState so the closure value lags behind the ref value.
+  const stateRef = useRef<VoiceState>('idle')
   const onResultRef = useRef(onResult)
 
   useEffect(() => {
@@ -47,21 +49,25 @@ export function useVoiceInput({ onResult, lang = 'en-US' }: Options) {
   }, [onResult])
 
   useEffect(() => {
-    const w = typeof window !== 'undefined' ? (window as unknown as Record<string, unknown>) : null
+    const w =
+      typeof window !== 'undefined'
+        ? (window as unknown as Record<string, unknown>)
+        : null
     const Ctor = w
-      ? ((w.SpeechRecognition as unknown) ||
-          (w.webkitSpeechRecognition as unknown))
+      ? (w.SpeechRecognition as unknown) || (w.webkitSpeechRecognition as unknown)
       : null
     if (!Ctor) {
       setSupported(false)
       return
     }
+
     const rec = new (Ctor as { new (): SpeechRecognitionLike })()
     rec.lang = lang
     rec.interimResults = true
-    // continuous = true prevents the browser auto-stopping on silence, which
-    // was causing the button to "unselect" mid-hold.
+    // continuous = true prevents the browser from auto-stopping on silence,
+    // which was causing the button to "unselect" mid-hold.
     rec.continuous = true
+
     rec.onresult = (event) => {
       let combined = ''
       for (let i = 0; i < event.results.length; i += 1) {
@@ -70,71 +76,72 @@ export function useVoiceInput({ onResult, lang = 'en-US' }: Options) {
       transcriptRef.current = combined
       setTranscript(combined)
     }
+
     rec.onerror = (err) => {
-      console.error('SpeechRecognition error:', err)
+      console.error('[VoiceInput] SpeechRecognition error:', err)
+      stateRef.current = 'idle'
       setState('idle')
     }
+
     rec.onend = () => {
-      const shouldProcess = shouldProcessOnEndRef.current
-      shouldProcessOnEndRef.current = false
-      if (!shouldProcess) {
+      // Only process if stop() flagged that we want the transcript.
+      if (stateRef.current !== 'processing') {
+        stateRef.current = 'idle'
         setState('idle')
         return
       }
 
       const final = transcriptRef.current.trim()
       if (!final) {
+        stateRef.current = 'idle'
         setState('idle')
         return
       }
 
-      setState('processing')
-      void spokenToLatex(final)
-        .then((latex) => onResultRef.current(latex, final))
-        .finally(() => setState('idle'))
+      const latex = spokenToLatex(final)
+      onResultRef.current(latex, final)
+      stateRef.current = 'idle'
+      setState('idle')
     }
+
     recognitionRef.current = rec
   }, [lang])
 
+  // start and stop are stable — no state in deps because we use stateRef.
   const start = useCallback(() => {
     const rec = recognitionRef.current
-    if (!rec || state !== 'idle') return
-    shouldProcessOnEndRef.current = false
+    if (!rec || stateRef.current !== 'idle') return
+    stateRef.current = 'recording'
+    setState('recording')
     setTranscript('')
     transcriptRef.current = ''
-    setState('recording')
     try {
       rec.start()
     } catch (err) {
-      console.error('Failed to start recognition:', err)
+      console.error('[VoiceInput] Failed to start recognition:', err)
+      stateRef.current = 'idle'
       setState('idle')
     }
-  }, [state])
+  }, [])
 
   const stop = useCallback(() => {
     const rec = recognitionRef.current
-    if (!rec || state !== 'recording') return
-    shouldProcessOnEndRef.current = true
+    if (!rec || stateRef.current !== 'recording') return
+    stateRef.current = 'processing'
     setState('processing')
     rec.stop()
-  }, [state])
+  }, [])
 
   return { state, transcript, supported, start, stop }
 }
 
-async function spokenToLatex(spoken: string): Promise<string> {
+/**
+ * Convert a spoken transcript to LaTeX.
+ *
+ * MathLive v0.101.x does not export `convertSpeechToLatex`, so the
+ * spoken-math dictionary is the sole conversion path.
+ */
+function spokenToLatex(spoken: string): string {
   if (!spoken.trim()) return ''
-  // Try MathLive first if available; fall back to dictionary on error/empty.
-  try {
-    const mathlive = (await import('mathlive')) as unknown as {
-      convertSpeechToLatex?: (s: string) => string | null
-    }
-    if (typeof mathlive.convertSpeechToLatex === 'function') {
-      const latex = mathlive.convertSpeechToLatex(spoken)
-      if (latex && latex.trim()) return latex
-    }
-  } catch {
-    // ignore; fall through
-  }
   return applySpokenMathFallback(spoken)
 }

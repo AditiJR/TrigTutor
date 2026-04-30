@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { saveOcrHandoff } from '@/lib/ocrHandoff'
 import type { OcrResult } from '@/lib/types'
 
@@ -15,9 +15,11 @@ const MAX_INLINE_PREVIEW_BYTES = 4 * 1024 * 1024
  */
 export function ImageUpload() {
   const router = useRouter()
+  const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [progressMsg, setProgressMsg] = useState<string>('')
+  const [dragging, setDragging] = useState(false)
 
   const handleFile = async (file: File) => {
     setError(null)
@@ -35,7 +37,8 @@ export function ImageUpload() {
     setProgressMsg('Reading image…')
 
     try {
-      const previewUrl = file.size <= MAX_INLINE_PREVIEW_BYTES ? await fileToDataUrl(file) : null
+      const previewUrl =
+        file.size <= MAX_INLINE_PREVIEW_BYTES ? await fileToDataUrl(file) : null
 
       setProgressMsg('Extracting the problem…')
       const form = new FormData()
@@ -45,11 +48,13 @@ export function ImageUpload() {
       if (!res.ok) {
         const errBody = (await res.json().catch(() => ({}))) as { error?: string }
         if (res.status === 429) {
-          setError('Whoa — too many uploads. Wait a minute and try again.')
+          setError('Too many uploads. Wait a minute and try again.')
         } else if (errBody.error === 'image_field_required') {
           setError('Something went wrong with the upload. Try again.')
         } else if (errBody.error === 'ocr_failed') {
-          setError('We couldn\u2019t read that image. Try a clearer photo, or pick a problem from the list below.')
+          setError(
+            "We couldn\u2019t read that image. Try a clearer photo, or pick a problem from the list below."
+          )
         } else {
           setError(`Upload failed (HTTP ${res.status}). Try again.`)
         }
@@ -57,7 +62,6 @@ export function ImageUpload() {
       }
 
       const data = (await res.json()) as OcrResult
-
       const handoff = saveOcrHandoff(data, previewUrl)
       router.push(`/confirm-ocr?id=${encodeURIComponent(handoff.id)}`)
     } catch (err) {
@@ -75,28 +79,50 @@ export function ImageUpload() {
     e.target.value = ''
   }
 
-  const onDrop = (e: React.DragEvent<HTMLLabelElement>) => {
+  const onDrop = (e: React.DragEvent) => {
     e.preventDefault()
+    setDragging(false)
     const f = e.dataTransfer.files?.[0]
     if (f) void handleFile(f)
   }
 
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragging(true)
+  }
+
+  const onDragLeave = () => setDragging(false)
+
   return (
-    <div className="space-y-2">
-      <label
-        onDragOver={(e) => e.preventDefault()}
+    <div className="w-full">
+      <div
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
         onDrop={onDrop}
-        className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-white p-8 text-center transition hover:border-blue-400"
+        className={`transition-colors ${dragging ? 'bg-primary-fixed/20' : ''}`}
       >
-        <span className="text-sm font-medium text-slate-700">
-          {busy
-            ? progressMsg || 'Reading your image\u2026'
-            : 'Drop a photo, or tap to choose / take one'}
-        </span>
-        <span className="mt-1 text-xs text-slate-500">
-          PNG, JPEG, or HEIC up to 8&nbsp;MB. We&rsquo;ll show what we extracted before solving.
-        </span>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => inputRef.current?.click()}
+          className="bg-primary hover:bg-primary/90 text-on-primary font-label text-label px-6 py-3 rounded-lg transition-colors shadow-sm flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {busy ? (
+            <>
+              <span className="material-symbols-outlined text-sm animate-pulse">
+                hourglass_empty
+              </span>
+              {progressMsg || 'Working…'}
+            </>
+          ) : (
+            <>
+              <span className="material-symbols-outlined text-sm">image</span>
+              Select File
+            </>
+          )}
+        </button>
         <input
+          ref={inputRef}
           type="file"
           accept="image/*"
           capture="environment"
@@ -104,8 +130,10 @@ export function ImageUpload() {
           onChange={onChange}
           disabled={busy}
         />
-      </label>
-      {error && <p className="text-sm text-incorrect">{error}</p>}
+      </div>
+      {error && (
+        <p className="mt-3 text-body-sm font-body-sm text-incorrect">{error}</p>
+      )}
     </div>
   )
 }

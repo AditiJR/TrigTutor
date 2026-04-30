@@ -11,8 +11,8 @@ type Props = {
 }
 
 /**
- * Optional MCQ scaffolding. Used as a fallback when the student is stuck.
- * Options come from `problem.multipleChoiceOptions`; if not provided, the button is hidden.
+ * Optional MCQ scaffolding shown when the student appears stuck.
+ * Only renders if the problem includes `multipleChoiceOptions`.
  */
 export function MultipleChoice({ problem, onPick, disabled }: Props) {
   const [open, setOpen] = useState(false)
@@ -26,12 +26,14 @@ export function MultipleChoice({ problem, onPick, disabled }: Props) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         disabled={disabled}
-        className="rounded-md bg-slate-200 px-3 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
+        className="border border-outline-variant text-secondary hover:bg-surface-container px-3 py-2 rounded-lg font-label text-label flex items-center gap-2 transition-colors focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        Show options
+        <span className="material-symbols-outlined text-[16px]">list</span>
+        {open ? 'Hide options' : 'Show options'}
       </button>
+
       {open && (
-        <ul className="absolute z-10 mt-2 w-72 space-y-1 rounded-md border border-slate-200 bg-white p-2 shadow-lg">
+        <ul className="absolute bottom-full mb-2 left-0 z-20 w-64 bg-surface border border-border-subtle rounded-lg shadow-lg p-2 flex flex-col gap-1">
           {options.map((opt) => (
             <li key={opt}>
               <button
@@ -41,7 +43,7 @@ export function MultipleChoice({ problem, onPick, disabled }: Props) {
                   setOpen(false)
                   onPick(opt)
                 }}
-                className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-slate-100"
+                className="w-full text-left px-3 py-2 rounded font-body-sm text-body-sm text-on-surface hover:bg-surface-container transition-colors disabled:opacity-40"
               >
                 <InlineMath math={opt} />
               </button>

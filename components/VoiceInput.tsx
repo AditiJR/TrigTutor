@@ -8,28 +8,26 @@ type Props = {
 }
 
 /**
- * Push-to-talk button. Uses Web Speech API → MathLive speech parser → LaTeX.
- * No Claude round-trip. See CLAUDE.md ("Voice input flow").
+ * Push-to-talk circular mic button. Uses Web Speech API → MathLive speech
+ * parser → LaTeX. No Claude round-trip.
  *
- * Pointer capture is used so the browser keeps sending pointer events to this
- * button even if the finger/cursor drifts outside it while held down. This
- * prevents the "releases after one second" bug caused by pointerleave firing.
+ * Pointer capture keeps the button "held" even if the finger/cursor drifts
+ * outside — this prevents the one-second-release bug caused by pointerleave.
  */
 export function VoiceInput({ onResult, disabled }: Props) {
   const { state, transcript, supported, start, stop } = useVoiceInput({ onResult })
   const recording = state === 'recording'
+  const processing = state === 'processing'
 
   if (!supported) {
     return (
-      <span className="text-xs text-slate-500">
-        Voice input isn&apos;t supported in this browser.
+      <span className="font-body-sm text-body-sm text-secondary">
+        Voice not supported
       </span>
     )
   }
 
   const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
-    // Capture the pointer so events keep firing here even if the cursor/finger
-    // moves off the button — this is what keeps the button "held".
     e.currentTarget.setPointerCapture(e.pointerId)
     start()
   }
@@ -49,26 +47,33 @@ export function VoiceInput({ onResult, disabled }: Props) {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-col items-center gap-1 select-none">
       <button
         type="button"
+        aria-label={recording ? 'Listening — release to stop' : 'Hold to talk'}
         disabled={disabled}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
-        // No onPointerLeave — with capture active the pointer can't "leave"
-        // until explicitly released, so that event is irrelevant.
-        className={`select-none rounded-md px-3 py-2 text-sm font-medium shadow-sm transition ${
+        className={`w-14 h-14 rounded-full flex items-center justify-center border shadow-sm transition-colors focus:outline-none focus:ring-4 focus:ring-primary/20 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed select-none ${
           recording
-            ? 'bg-red-600 text-white'
-            : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
-        } disabled:cursor-not-allowed disabled:opacity-50`}
+            ? 'bg-incorrect text-on-primary border-incorrect/50 ring-4 ring-incorrect/20'
+            : processing
+              ? 'bg-warning/20 text-warning border-warning/30'
+              : 'bg-surface-container hover:bg-surface-container-high text-on-surface border-border-subtle'
+        }`}
       >
-        {recording ? 'Listening…' : 'Hold to talk'}
-        {state === 'processing' ? ' (processing…)' : ''}
+        <span
+          className="material-symbols-outlined"
+          style={recording ? { fontVariationSettings: "'FILL' 1" } : undefined}
+        >
+          {processing ? 'hourglass_empty' : 'mic'}
+        </span>
       </button>
       {transcript && (
-        <span className="text-xs italic text-slate-500">{transcript}</span>
+        <span className="font-body-sm text-body-sm text-secondary truncate max-w-[100px] text-center leading-tight">
+          {transcript}
+        </span>
       )}
     </div>
   )

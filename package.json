@@ -5,6 +5,7 @@
   "description": "Socratic trigonometry tutor with deterministic SymPy validation and Claude-generated hints.",
   "scripts": {
     "dev": "next dev",
+    "dev:fresh": "rm -rf .next && next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -13,6 +14,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.0",
+    "@google/generative-ai": "^0.24.1",
     "katex": "^0.16.11",
     "mathlive": "^0.101.0",
     "next": "14.2.5",

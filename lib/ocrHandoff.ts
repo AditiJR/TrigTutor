@@ -9,7 +9,7 @@
  * sessionStorage keyed by a short id and only put the id in the URL.
  */
 
-import type { OcrResult } from './types'
+import type { Diagram, OcrProvider, OcrResult } from './types'
 
 const STORAGE_KEY = 'trig-tutor-ocr-handoff'
 
@@ -20,6 +20,8 @@ export type OcrHandoff = {
   rawText: string
   imageDataUrl: string | null
   configured: boolean
+  provider: OcrProvider
+  diagram: Diagram | null
   createdAt: number
 }
 
@@ -37,6 +39,8 @@ export function saveOcrHandoff(
     rawText: result.rawText,
     imageDataUrl,
     configured: result.configured ?? true,
+    provider: result.provider ?? 'none',
+    diagram: result.diagram ?? null,
     createdAt: Date.now()
   }
   const store = readStore()

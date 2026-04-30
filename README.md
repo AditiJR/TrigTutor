@@ -1,77 +1,67 @@
-# Trig Tutor MVP
+# TrigTutor
 
-A Socratic trigonometry tutor that helps students learn by guiding them through problems
-step-by-step — never giving away the answer.
+A Socratic trig tutor. Students submit steps, SymPy checks correctness, the LLM only writes the hint.
 
-> **The architectural rule:** the LLM never decides if a step is right. SymPy does.
-> See `CLAUDE.md` for the full design contract.
+The LLM never decides if an answer is right — SymPy does.
 
-This repo is a scaffold — every file referenced in `CLAUDE.md` exists with a stub
-implementation so an agent or developer can fill in real logic incrementally without
-fighting the project shape.
+## Stack
 
-## Two services
+- **Next.js 14** (App Router, TypeScript)
+- **FastAPI + SymPy** — Python sidecar for deterministic math validation
+- **MathLive** — math keyboard input
+- **KaTeX** — math rendering
+- **Gemini Vision** — image-to-LaTeX OCR (free tier)
+- **Anthropic Claude** — Socratic hint generation only
 
-```
-trig-tutor/                 ← Next.js 14 app (frontend + API routes)
-└── python-service/         ← FastAPI + SymPy validator (separate container)
-```
+## Setup
 
-Both must be running locally for the full flow to work.
-
-## Quick start
-
-### 1. Install Node deps
+### 1. Frontend
 
 ```bash
 npm install
 cp .env.local.example .env.local
-# then edit .env.local with real keys
+# fill in keys
+npm run dev
 ```
 
-### 2. Install Python deps
+### 2. Python service
 
 ```bash
 cd python-service
-python -m venv .venv
-source .venv/bin/activate
+python -m venv helper
+source helper/bin/activate
 pip install -r requirements.txt
+PYTHON_SERVICE_TOKEN=dev-shared-secret-change-me uvicorn main:app --reload --port 8000
 ```
 
-### 3. Run both services
+### 3. Env vars
 
-In one terminal:
+| Variable | Purpose |
+|---|---|
+| `ANTHROPIC_API_KEY` | Claude hint generation |
+| `GOOGLE_AI_API_KEY` | Gemini Vision OCR — [get a free key](https://aistudio.google.com/apikey) |
+| `PYTHON_SERVICE_URL` | URL of the FastAPI service (default: `http://localhost:8000`) |
+| `PYTHON_SERVICE_TOKEN` | Shared secret between Next.js and the Python service |
 
-```bash
-npm run python:dev
-# starts FastAPI at http://localhost:8000
+OCR works without any key — the confirm screen lets students type problems manually.
+
+## How it works
+
+```
+Student step → SymPy validates → Claude writes Socratic hint
 ```
 
-In another terminal:
+Image upload → Gemini extracts LaTeX + diagram facts → student confirms → solve session starts.
 
-```bash
-npm run dev
-# starts Next.js at http://localhost:3000
+## Project layout
+
+```
+app/           Next.js pages + API routes
+components/    UI components
+lib/           API clients, types, utilities
+hooks/         React hooks (voice input, solve session state)
+python-service/  FastAPI + SymPy validator
+data/          10 seed trig problems with canonical step encodings
 ```
 
-## What's stubbed vs. real
-
-Everything is wired together (types, routes, calls between services), but the actual
-math/AI logic is stubbed and clearly marked with `TODO` comments. Concretely:
-
-- API routes parse + validate inputs but return mocked verdicts/hints.
-- `python-service` parses LaTeX with `sympy.parsing.latex.parse_latex` and has the
-  validation algorithm sketched out, but heuristics for `reason` tags are stubbed.
-- Components render but don't yet wire up to real APIs end-to-end.
-- `data/problems.ts` has 1 fully-encoded problem and 9 placeholders.
-
-## Where to start filling in
-
-1. `python-service/trig_validator.py` — the heart of the product.
-2. `data/problems.ts` — flesh out the 9 placeholder problems with real `canonicalSteps`.
-3. `app/solve/[problemId]/page.tsx` — wire up the full session UI.
-4. `lib/stepParser.ts` — splitting multi-step student input.
-
-## See also
-
-`CLAUDE.md` — the source-of-truth design doc. Read it before changing architecture.
+See `CLAUDE.md` for the full architecture and decision log.
