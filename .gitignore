@@ -1,0 +1,46 @@
+# dependencies
+node_modules
+.pnp
+.pnp.js
+
+# next.js
+.next/
+out/
+build/
+dist/
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env
+.env*.local
+.env
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts.bak
+
+# python
+python-service/__pycache__/
+python-service/.venv/
+python-service/venv/
+python-service/helper/
+python-service/env/
+python-service/*.pyc
+python-service/.pytest_cache/
+**/__pycache__/
+**/*.pyc
+
+# stray env example duplicates
+/helper
+
+# editor
+.vscode/
+.idea/

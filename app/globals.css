@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import 'katex/dist/katex.min.css';
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+}
+
+math-field {
+  width: 100%;
+  min-height: 3rem;
+  border: 1px solid theme('colors.slate.300');
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 1.125rem;
+  background: white;
+}
+
+math-field:focus {
+  outline: 2px solid theme('colors.blue.500');
+  outline-offset: 2px;
+}
