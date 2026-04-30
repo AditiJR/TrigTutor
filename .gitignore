@@ -41,6 +41,9 @@ python-service/.pytest_cache/
 # stray env example duplicates
 /helper
 
+# local-only docs (personal / detailed architecture notes)
+IMPLEMENTATION.local.md
+
 # editor
 .vscode/
 .idea/
