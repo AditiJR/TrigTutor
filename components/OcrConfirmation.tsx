@@ -12,6 +12,7 @@ type Props = {
   configured?: boolean
   provider?: OcrProvider
   diagram?: Diagram | null
+  generatingSteps?: boolean
   onConfirm: (latex: string) => void
   onCancel?: () => void
 }
@@ -46,6 +47,7 @@ export function OcrConfirmation({
   configured = true,
   provider = 'none',
   diagram = null,
+  generatingSteps = false,
   onConfirm,
   onCancel
 }: Props) {
@@ -240,11 +242,20 @@ export function OcrConfirmation({
         <button
           type="button"
           onClick={() => onConfirm(latex)}
-          disabled={!latex.trim()}
+          disabled={!latex.trim() || generatingSteps}
           className="w-full md:w-auto bg-primary text-on-primary font-body-sm text-body-sm py-3 px-8 rounded-lg shadow-sm hover:bg-primary/90 transition-colors font-semibold flex items-center justify-center gap-2 h-touch-target disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Looks right — start solving
-          <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+          {generatingSteps ? (
+            <>
+              <span className="material-symbols-outlined text-[18px] animate-spin">refresh</span>
+              Generating solution path…
+            </>
+          ) : (
+            <>
+              Looks right — start solving
+              <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+            </>
+          )}
         </button>
       </div>
     </>

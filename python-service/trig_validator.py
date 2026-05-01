@@ -104,9 +104,18 @@ def validate_step(
 
     # 4. Lenient mode for unscaffolded problems: if there's no canonical solution
     #    AND no expected final answer (e.g. OCR-imported user problems), we have
-    #    nothing to compare against. Anything that parses is accepted as a
-    #    "valid expression" so the student isn't met with a wall of red lights.
+    #    nothing to compare against. Accept the step only if it has mathematical
+    #    substance (contains a number, a trig function, or a known variable).
+    #    Pure garbage symbols like "totheID" are rejected as unparseable.
     if not has_canonical and not has_final:
+        if not _has_math_substance(new_expr):
+            return ValidationVerdict(
+                status="unparseable",
+                matched_canonical_step=None,
+                detected_concept=None,
+                symbolic_form=symbolic_form,
+                reason="no_mathematical_content",
+            )
         return ValidationVerdict(
             status="correct",
             matched_canonical_step=None,
@@ -259,3 +268,48 @@ def _count_squared_trig_terms(expr: Expr) -> int:
             if isinstance(base, Expr) and base.func in (sympy.sin, sympy.cos, sympy.tan):
                 count += 1
     return count
+
+
+# Known variable names that are acceptable on their own in trig problems.
+_KNOWN_VARS = {
+    "x", "y", "z", "t", "n", "k", "a", "b", "c", "h", "r",
+    "theta", "phi", "alpha", "beta", "gamma", "omega",
+}
+
+# SymPy applied-function base classes for trig/math functions.
+_TRIG_FN_CLASSES = (
+    sympy.sin, sympy.cos, sympy.tan,
+    sympy.asin, sympy.acos, sympy.atan,
+    sympy.csc, sympy.sec, sympy.cot,
+    sympy.log, sympy.exp,
+)
+
+
+def _has_math_substance(expr: Expr) -> bool:
+    """Return True if the expression has real mathematical content.
+
+    Rejects expressions that consist solely of unknown multi-character symbols
+    (e.g. 'totheID') with no numbers or trig functions.
+    """
+    for node in sympy.preorder_traversal(expr):
+        # Any numeric literal or constant (pi, E, etc.) → substance
+        if isinstance(node, (sympy.Number, sympy.NumberSymbol)):
+            return True
+        # Any trig / log / exp function call → substance
+        if isinstance(node, _TRIG_FN_CLASSES):
+            return True
+        # Sqrt shows up as Pow with exponent 1/2
+        if (
+            isinstance(node, sympy.Pow)
+            and node.exp == sympy.Rational(1, 2)
+        ):
+            return True
+
+    # Expression is purely symbolic — allow only known / short variable names.
+    for sym in expr.free_symbols:
+        name = str(sym).lower()
+        if len(name) > 3 and name not in _KNOWN_VARS:
+            # Multi-character unknown symbol → likely garbage input
+            return False
+
+    return bool(expr.free_symbols)

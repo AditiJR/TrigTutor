@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SocraticTrig - Solve Session</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error": "#ba1a1a",
+                        "surface-tint": "#0053db",
+                        "on-secondary-fixed-variant": "#38485d",
+                        "on-tertiary-fixed-variant": "#7d2d00",
+                        "tertiary-fixed-dim": "#ffb596",
+                        "on-primary": "#ffffff",
+                        "outline-variant": "#c3c6d7",
+                        "surface-container-highest": "#e1e2ed",
+                        "surface-bright": "#faf8ff",
+                        "border-subtle": "#E2E8F0",
+                        "on-primary-fixed-variant": "#003ea8",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed": "#dbe1ff",
+                        "outline": "#737686",
+                        "on-secondary": "#ffffff",
+                        "bg-base": "#F8FAFC",
+                        "equivalent": "#2563EB",
+                        "secondary-container": "#d0e1fb",
+                        "tertiary-container": "#bc4800",
+                        "inverse-primary": "#b4c5ff",
+                        "on-primary-container": "#eeefff",
+                        "on-error-container": "#93000a",
+                        "tertiary": "#943700",
+                        "surface-variant": "#e1e2ed",
+                        "warning": "#D97706",
+                        "secondary": "#505f76",
+                        "on-tertiary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "on-surface-variant": "#434655",
+                        "on-primary-fixed": "#00174b",
+                        "surface-container-low": "#f3f3fe",
+                        "on-tertiary-container": "#ffede6",
+                        "primary-fixed-dim": "#b4c5ff",
+                        "secondary-fixed-dim": "#b7c8e1",
+                        "correct": "#16A34A",
+                        "secondary-fixed": "#d3e4fe",
+                        "incorrect": "#DC2626",
+                        "primary": "#004ac6",
+                        "surface-container": "#ededf9",
+                        "on-background": "#191b23",
+                        "surface": "#FFFFFF",
+                        "on-secondary-fixed": "#0b1c30",
+                        "inverse-surface": "#2e3039",
+                        "on-surface": "#191b23",
+                        "surface-dim": "#d9d9e5",
+                        "inverse-on-surface": "#f0f0fb",
+                        "tertiary-fixed": "#ffdbcd",
+                        "on-secondary-container": "#54647a",
+                        "error-container": "#ffdad6",
+                        "background": "#faf8ff",
+                        "on-tertiary-fixed": "#360f00",
+                        "surface-container-high": "#e7e7f3",
+                        "primary-container": "#2563eb"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "container-max": "1024px",
+                        "touch-target": "44px",
+                        "stack-lg": "2rem",
+                        "stack-sm": "0.5rem",
+                        "gutter": "1.5rem",
+                        "stack-md": "1rem"
+                    },
+                    "fontFamily": {
+                        "h1": ["Lexend"],
+                        "h2": ["Lexend"],
+                        "body": ["Inter"],
+                        "math": ["KaTeX_Main", "serif"],
+                        "body-sm": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    "fontSize": {
+                        "h1": ["24px", { "lineHeight": "32px", "fontWeight": "700" }],
+                        "h2": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "body": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "math": ["18px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "label": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background font-body text-body antialiased selection:bg-primary/20">
+<div class="flex flex-col h-screen max-w-[1024px] mx-auto bg-background shadow-2xl shadow-surface-variant/30 relative overflow-hidden">
+<!-- Top Section: Header & Problem Statement -->
+<header class="bg-surface border-b border-border-subtle p-stack-md shrink-0 flex flex-col gap-stack-sm z-10">
+<div class="flex items-center justify-between mb-2">
+<button aria-label="Go back" class="flex items-center justify-center w-touch-target h-touch-target text-secondary hover:bg-surface-container rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<div class="flex items-center gap-stack-sm">
+<span class="font-label text-label text-secondary uppercase tracking-wider">Unit Circle</span>
+<span class="bg-warning/10 text-warning px-3 py-1 rounded-full font-label text-label border border-warning/20">Medium</span>
+</div>
+<button aria-label="More options" class="flex items-center justify-center w-touch-target h-touch-target text-secondary hover:bg-surface-container rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+<div class="bg-surface-container-low border border-border-subtle rounded-lg p-stack-md">
+<p class="font-body text-body text-on-surface text-center mb-stack-sm">Evaluate the exact value of the trigonometric function without using a calculator:</p>
+<div class="font-math text-math text-center py-stack-sm text-on-background bg-surface rounded border border-border-subtle shadow-sm mx-auto max-w-fit px-8">
+                    sin(5π / 6)
+                </div>
+</div>
+</header>
+<!-- Middle Section: Step History & Tutor Bubble -->
+<main class="flex-1 overflow-y-auto p-stack-md flex flex-col gap-stack-md scroll-smooth">
+<!-- Step 1: Correct -->
+<div class="bg-surface border border-border-subtle shadow-sm rounded-lg p-stack-sm flex flex-col gap-stack-sm">
+<div class="flex justify-between items-center border-b border-border-subtle pb-2">
+<span class="font-label text-label text-outline">Step 1</span>
+<div class="bg-correct/10 text-correct px-3 py-1 rounded-full flex items-center gap-1 font-label text-label border border-correct/20">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                        Correct
+                    </div>
+</div>
+<div class="font-math text-math text-center py-stack-md text-on-surface">
+                    sin(π - π / 6)
+                </div>
+</div>
+<!-- Step 2: Incorrect -->
+<div class="bg-surface border border-border-subtle shadow-sm rounded-lg p-stack-sm flex flex-col gap-stack-sm">
+<div class="flex justify-between items-center border-b border-border-subtle pb-2">
+<span class="font-label text-label text-outline">Step 2</span>
+<div class="bg-error-container/50 text-incorrect px-3 py-1 rounded-full flex items-center gap-1 font-label text-label border border-error-container">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">cancel</span>
+                        Needs another look
+                    </div>
+</div>
+<div class="font-math text-math text-center py-stack-md text-on-surface line-through decoration-incorrect/50 decoration-2">
+                    sin(5π / 6) = -1 / 2
+                </div>
+</div>
+<!-- Tutor Feedback Bubble -->
+<div class="bg-surface-bright border border-border-subtle border-l-4 border-l-primary-container shadow-sm rounded-r-lg rounded-l-sm p-stack-md flex flex-col gap-stack-sm ml-2 relative mt-2">
+<div class="flex items-center gap-2 mb-1 text-primary-container">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">school</span>
+<span class="font-label text-label">Tutor Hint</span>
+</div>
+<p class="font-body text-body text-on-surface">
+                    Close! Remember that the angle 5π/6 is in the second quadrant. What is the sign of the sine function in the second quadrant?
+                </p>
+<p class="font-body-sm text-body-sm text-secondary italic mt-1">
+                    You've got this! Think about the ASTC rule.
+                </p>
+<div class="mt-2">
+<span class="bg-surface-container text-on-surface-variant px-3 py-1.5 rounded-full font-label text-label border border-border-subtle inline-flex items-center">
+                        Reference Angles
+                    </span>
+</div>
+</div>
+<!-- Spacer to ensure scrolling content isn't hidden behind sticky footer -->
+<div class="h-4"></div>
+</main>
+<!-- Bottom Section: Input Area & Actions -->
+<footer class="bg-surface border-t border-border-subtle p-stack-md flex flex-col gap-stack-md shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.03)] shrink-0 z-10">
+<!-- Transcript Row -->
+<div class="flex items-center gap-2 text-secondary px-2">
+<span class="material-symbols-outlined">hearing</span>
+<span class="font-body-sm text-body-sm">Hearing: "It should be positive one half..."</span>
+</div>
+<!-- MathLive Input Simulation -->
+<div class="relative bg-surface rounded-lg border border-primary ring-2 ring-primary-fixed/50 p-stack-md shadow-sm flex items-center justify-center min-h-[80px] cursor-text focus-within:ring-primary/30 transition-shadow">
+<div class="flex items-center">
+<span class="font-math text-math text-on-surface">1 / 2</span>
+<div class="w-[2px] h-[24px] bg-primary ml-1 rounded-full"></div>
+</div>
+</div>
+<!-- Action Controls -->
+<div class="flex justify-between items-center gap-stack-md pt-2">
+<button class="border border-outline hover:border-secondary text-secondary hover:bg-surface-container px-4 py-3 rounded-lg font-label text-label flex items-center gap-2 transition-colors focus:outline-none focus:ring-2 focus:ring-primary">
+<span class="material-symbols-outlined">keyboard</span>
+                    Show Keyboard
+                </button>
+<button aria-label="Hold to talk" class="w-14 h-14 rounded-full bg-surface-container hover:bg-surface-container-high flex items-center justify-center text-on-surface border border-border-subtle shadow-sm transition-colors focus:outline-none focus:ring-4 focus:ring-primary/20 shrink-0">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">mic</span>
+</button>
+<button class="bg-primary hover:bg-primary/90 text-on-primary px-6 py-3 rounded-lg font-label text-label flex items-center gap-2 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
+                    Submit Step
+                    <span class="material-symbols-outlined">send</span>
+</button>
+</div>
+</footer>
+</div>
+</body></html>

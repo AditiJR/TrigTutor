@@ -164,12 +164,6 @@ function SolveProblemShell({ problem }: { problem: Problem }) {
           </div>
         )}
 
-        {problem.finalAnswer.length === 0 && session.steps.length === 0 && (
-          <p className="font-body-sm text-body-sm text-secondary italic text-center px-4">
-            Imported problem — no canonical steps loaded. Each valid transformation
-            will be accepted.
-          </p>
-        )}
 
         {/* Scroll anchor */}
         <div ref={bottomRef} className="h-4" />

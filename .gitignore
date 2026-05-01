@@ -47,3 +47,6 @@ IMPLEMENTATION.local.md
 # editor
 .vscode/
 .idea/
+
+# Cursor / Claude local agent state
+.claude/

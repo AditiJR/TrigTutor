@@ -9,7 +9,7 @@ import type {
   OcrResult
 } from './types'
 
-const MODEL = 'gemini-2.0-flash-lite'
+const MODEL = 'gemini-2.5-flash'
 
 let cachedModel: GenerativeModel | null = null
 

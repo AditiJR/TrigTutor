@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Confirm OCR - SocraticTrig</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Lexend:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- KaTeX Font CSS (Mocking for the font family requirement) -->
+<link href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Config -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error": "#ba1a1a",
+                        "surface-tint": "#0053db",
+                        "on-secondary-fixed-variant": "#38485d",
+                        "on-tertiary-fixed-variant": "#7d2d00",
+                        "tertiary-fixed-dim": "#ffb596",
+                        "on-primary": "#ffffff",
+                        "outline-variant": "#c3c6d7",
+                        "surface-container-highest": "#e1e2ed",
+                        "surface-bright": "#faf8ff",
+                        "border-subtle": "#E2E8F0",
+                        "on-primary-fixed-variant": "#003ea8",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed": "#dbe1ff",
+                        "outline": "#737686",
+                        "on-secondary": "#ffffff",
+                        "bg-base": "#F8FAFC",
+                        "equivalent": "#2563EB",
+                        "secondary-container": "#d0e1fb",
+                        "tertiary-container": "#bc4800",
+                        "inverse-primary": "#b4c5ff",
+                        "on-primary-container": "#eeefff",
+                        "on-error-container": "#93000a",
+                        "tertiary": "#943700",
+                        "surface-variant": "#e1e2ed",
+                        "warning": "#D97706",
+                        "secondary": "#505f76",
+                        "on-tertiary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "on-surface-variant": "#434655",
+                        "on-primary-fixed": "#00174b",
+                        "surface-container-low": "#f3f3fe",
+                        "on-tertiary-container": "#ffede6",
+                        "primary-fixed-dim": "#b4c5ff",
+                        "secondary-fixed-dim": "#b7c8e1",
+                        "correct": "#16A34A",
+                        "secondary-fixed": "#d3e4fe",
+                        "incorrect": "#DC2626",
+                        "primary": "#004ac6",
+                        "surface-container": "#ededf9",
+                        "on-background": "#191b23",
+                        "surface": "#FFFFFF",
+                        "on-secondary-fixed": "#0b1c30",
+                        "inverse-surface": "#2e3039",
+                        "on-surface": "#191b23",
+                        "surface-dim": "#d9d9e5",
+                        "inverse-on-surface": "#f0f0fb",
+                        "tertiary-fixed": "#ffdbcd",
+                        "on-secondary-container": "#54647a",
+                        "error-container": "#ffdad6",
+                        "background": "#faf8ff",
+                        "on-tertiary-fixed": "#360f00",
+                        "surface-container-high": "#e7e7f3",
+                        "primary-container": "#2563eb"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "container-max": "1024px",
+                        "touch-target": "44px",
+                        "stack-lg": "2rem",
+                        "stack-sm": "0.5rem",
+                        "gutter": "1.5rem",
+                        "stack-md": "1rem"
+                    },
+                    "fontFamily": {
+                        "h1": ["Lexend"],
+                        "h2": ["Lexend"],
+                        "body": ["Inter"],
+                        "math": ["KaTeX_Main", "serif"],
+                        "body-sm": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    "fontSize": {
+                        "h1": ["24px", { "lineHeight": "32px", "fontWeight": "700" }],
+                        "h2": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "body": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "math": ["18px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "label": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        /* Basic reset for custom element to behave visually in this mock */
+        math-field {
+            display: block;
+            width: 100%;
+        }
+    </style>
+</head>
+<body class="bg-bg-base text-on-background font-body text-body min-h-screen flex flex-col antialiased">
+<!-- Minimal Transactional Header (Suppressing Global Nav Shell per logic) -->
+<header class="bg-surface border-b border-border-subtle h-16 flex items-center px-gutter shrink-0 sticky top-0 z-50">
+<div class="max-w-container-max mx-auto w-full flex items-center gap-stack-md">
+<button aria-label="Go back" class="w-touch-target h-touch-target flex items-center justify-center rounded-full hover:bg-surface-container-low text-secondary transition-colors">
+<span class="material-symbols-outlined text-[20px]">arrow_back</span>
+</button>
+<h1 class="font-h2 text-h2 text-on-surface">Confirm Math Problem</h1>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-grow w-full max-w-container-max mx-auto px-gutter py-stack-lg flex flex-col gap-stack-lg">
+<!-- Amber Warning Banner (Low Confidence) -->
+<div class="bg-[#FFFBEB] border border-[#FDE68A] rounded-lg p-stack-sm flex items-start gap-stack-sm shadow-sm">
+<span class="material-symbols-outlined text-[#D97706] mt-0.5" style="font-variation-settings: 'FILL' 1;">warning</span>
+<div class="flex flex-col">
+<p class="font-body-sm text-body-sm text-[#92400E] font-medium">Low confidence extraction</p>
+<p class="font-body-sm text-body-sm text-[#B45309]">The handwriting was a bit tricky to read. Please verify the extracted equation below and correct it if needed.</p>
+</div>
+</div>
+<!-- Two Column Layout: Image vs Extraction -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-stack-lg items-start">
+<!-- Left Column: Original Uploaded Image -->
+<section class="bg-surface border border-border-subtle rounded-xl p-stack-md flex flex-col gap-stack-sm shadow-sm">
+<div class="flex items-center gap-2 px-1">
+<span class="material-symbols-outlined text-[18px] text-secondary">image</span>
+<h2 class="font-label text-label text-secondary uppercase tracking-wider">Original Upload</h2>
+</div>
+<div class="w-full aspect-[4/3] bg-surface-container-low rounded-lg border border-border-subtle overflow-hidden relative group">
+<img alt="Uploaded math problem" class="w-full h-full object-cover" data-alt="A close-up photograph of a handwritten trigonometric identity equation scrawled on a slightly crumpled sheet of lined white notebook paper. The handwriting is somewhat messy and slanted, written in dark blue ink. The scene is illuminated by bright, natural daylight casting soft shadows, emphasizing a modern educational aesthetic. The overall mood is focused, studious, and clear." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB1A0wVLnVBX4PiCvMUdpTRmcFZ7J22_NIlZ6qUfIT2OqO5XxUYgRR1uEKeBlNg43sNlfC4Alw69kx_iRwjPMIf75Kv0bQ9-N0uowkbQlMgklODfgBXodYOUW8IQZw-yKvVa5q2w2SQIG5Ixvb8qZkPimRBcy6Jgcy4BCCYvthD-b7i3sL1xu5v7YDv5QW58pgT1Kx4wCKFRtamE50ZnV2nMew_EUfnvJmXkxeNR3HjlB_Kqul-dyp1sRC8jsakmspK7fbj3oezIVpI"/>
+<!-- Image Overlay Action (Optional/Visual flair) -->
+<div class="absolute inset-0 bg-on-background/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+<span class="bg-surface/90 text-on-surface font-label text-label px-3 py-1.5 rounded-full backdrop-blur-sm border border-border-subtle shadow-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">zoom_in</span> View Full
+                        </span>
+</div>
+</div>
+</section>
+<!-- Right Column: Extracted LaTeX & Editor -->
+<section class="bg-surface border border-border-subtle rounded-xl p-stack-md flex flex-col gap-stack-md shadow-sm h-full">
+<!-- Extracted Preview (Read-only visual) -->
+<div class="flex flex-col gap-stack-sm">
+<div class="flex items-center gap-2 px-1">
+<span class="material-symbols-outlined text-[18px] text-primary">psychology</span>
+<h2 class="font-label text-label text-primary uppercase tracking-wider">Extracted Math</h2>
+</div>
+<div class="w-full bg-surface-container rounded-lg border border-border-subtle p-stack-md flex items-center justify-center min-h-[120px]">
+<!-- Rendered Math Output Simulation -->
+<span class="font-math text-math text-on-surface text-[24px]">
+<span class="text-error border-b-2 border-error/30 pb-0.5 border-dashed relative group cursor-help">
+                                \cos^2(x)
+                                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max bg-inverse-surface text-inverse-on-surface font-label text-label px-2 py-1 rounded shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                    Low confidence
+                                </div>
+</span>
+                            + \sin^2(x) = 1
+                        </span>
+</div>
+</div>
+<!-- Editable MathLive Field -->
+<div class="flex flex-col gap-stack-sm mt-auto">
+<label class="font-label text-label text-secondary px-1 flex justify-between items-end" for="math-editor">
+                        Manual Corrections
+                        <button class="text-primary hover:underline font-body-sm text-body-sm hidden md:block">Show Keyboard</button>
+</label>
+<div class="relative">
+<!-- Mocking MathLive input behavior with native styling -->
+<math-field class="w-full bg-surface border border-outline-variant rounded-lg p-stack-sm text-math font-math min-h-[80px] focus-within:ring-2 focus-within:ring-primary/50 focus-within:border-primary outline-none transition-all shadow-sm flex items-center text-[20px] text-on-surface" id="math-editor">
+                            \cos^2(x) + \sin^2(x) = 1
+                        </math-field>
+<!-- Floating Keyboard Toggle for Mobile -->
+<button class="absolute bottom-2 right-2 w-8 h-8 flex items-center justify-center rounded bg-surface-container-low text-secondary border border-border-subtle md:hidden shadow-sm hover:bg-surface-container-high">
+<span class="material-symbols-outlined text-[18px]">keyboard</span>
+</button>
+</div>
+<p class="font-body-sm text-body-sm text-secondary px-1">Tap directly on the math above to edit, or use your keyboard.</p>
+</div>
+</section>
+</div>
+<!-- Action Area -->
+<div class="flex flex-col md:flex-row justify-end items-center pt-stack-md border-t border-border-subtle gap-stack-sm mt-auto">
+<button class="w-full md:w-auto px-6 py-3 rounded-lg font-label text-label text-secondary hover:bg-surface-container-low transition-colors border border-transparent hover:border-border-subtle h-touch-target flex items-center justify-center">
+                Cancel
+            </button>
+<button class="w-full md:w-auto bg-primary text-on-primary font-body-sm text-body-sm py-3 px-8 rounded-lg shadow-sm hover:bg-primary-container hover:text-on-primary-container transition-colors font-semibold flex items-center justify-center gap-2 h-touch-target">
+                Looks right - start solving
+                <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</div>
+</main>
+</body></html>
