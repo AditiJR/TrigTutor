@@ -107,8 +107,11 @@ function buildCorrectHint(
   concept: string | null,
   isFirstStep: boolean
 ): string {
-  if (concept === 'final_answer' || concept === 'exploratory') {
-    return 'Great finish! Can you say which rule or value you used to land here?'
+  if (concept === 'final_answer') {
+    return 'You found the answer! Does it make sense in the context of the original problem?'
+  }
+  if (concept === 'exploratory') {
+    return 'Good step. What is the next algebraic move that gets you closer to solving for the unknown?'
   }
   if (problem.topic === 'special_angles') {
     return isFirstStep

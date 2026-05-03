@@ -84,11 +84,11 @@ function convertInverseTrig(s: string): string {
 function convertTrigPower(s: string): string {
   return s
     .replace(
-      /\b(sin|sine|cos|cosine|tan|tangent)\s+squared\s+(?:of\s+)?(\S+)/gi,
+      /\b(sin|sine|cos|cosine|tan|tangent)\s+squared?\s+(?:of\s+)?(\S+)/gi,
       (_, fn, arg) => `\\${normTrig(fn)}^2(${arg})`
     )
     .replace(
-      /\b(sin|sine|cos|cosine|tan|tangent)\s+cubed\s+(?:of\s+)?(\S+)/gi,
+      /\b(sin|sine|cos|cosine|tan|tangent)\s+cubed?\s+(?:of\s+)?(\S+)/gi,
       (_, fn, arg) => `\\${normTrig(fn)}^3(${arg})`
     )
 }
@@ -191,8 +191,8 @@ function cleanupArtifacts(s: string): string {
 function convertPowers(s: string): string {
   return s
     .replace(/\b(\w+)\s+(?:to\s+the\s+(?:power\s+of\s+)?|raised\s+to\s+)(\d+)/gi, '$1^{$2}')
-    .replace(/\b(\w+)\s+squared\b/gi, '$1^2')
-    .replace(/\b(\w+)\s+cubed\b/gi, '$1^3')
+    .replace(/\b(\w+)\s+squared?\b/gi, '$1^2')   // "square" and "squared"
+    .replace(/\b(\w+)\s+cubed?\b/gi, '$1^3')     // "cube" and "cubed"
 }
 
 /** Greek letters, operators, and common symbols */
@@ -207,11 +207,16 @@ function convertSymbols(s: string): string {
     .replace(/\bpi\b/gi, '\\pi')
     .replace(/\bdegrees?\b/gi, '^\\circ')
     .replace(/°/g, '^\\circ')
+    // "is equal to", "equals to", "equal to", "equals" → "="
+    // strip the trailing "to" so "equals to 5" → "= 5" not "= to 5"
+    .replace(/\b(?:is\s+)?equals?\s+to\b/gi, '=')
     .replace(/\bequals?\b/gi, '=')
     .replace(/\bplus\b/gi, '+')
     .replace(/\bminus\b/gi, '-')
     .replace(/\btimes\b/gi, '\\times')
     .replace(/\bhalf\b/gi, '\\frac{1}{2}')
+    // cleanup: stray "to" left after "equals to" or "equal to" conversions
+    .replace(/=\s+to\b/gi, '=')
 }
 
 // ── Main export ───────────────────────────────────────────────────────────

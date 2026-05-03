@@ -95,6 +95,7 @@ export function splitIntoSteps(rawLatex: string): ParsedSteps {
 export function normalizeStepLatex(input: string): string {
   return input
     .trim()
+    .replace(/^\$\$?([\s\S]+?)\$?\$$/s, (_, inner) => inner.trim())
     .replace(/^so\s+/i, '')
     .replace(/^=+\s*/, '')
     .replace(/\s+/g, ' ')

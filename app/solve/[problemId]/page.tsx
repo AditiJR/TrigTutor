@@ -2,8 +2,8 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { BlockMath } from 'react-katex'
-import { FeedbackBubble } from '@/components/FeedbackBubble'
+import { MixedMath } from '@/components/MixedMath'
+import { HandwrittenStepInput } from '@/components/HandwrittenStepInput'
 import { MathInput } from '@/components/MathInput'
 import { MultipleChoice } from '@/components/MultipleChoice'
 import { StepList } from '@/components/StepList'
@@ -83,18 +83,31 @@ export default function SolvePage({ params }: Props) {
 }
 
 function SolveProblemShell({ problem }: { problem: Problem }) {
-  const { session, submitStep, lastFeedback, isSubmitting } = useSolveSession(problem)
+  const { session, submitStep, isSubmitting, loadingHintStepId } = useSolveSession(problem)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const mainRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [ocrLatex, setOcrLatex] = useState('')
+  const [keyboardHeight, setKeyboardHeight] = useState(0)
+  const pendingInputMethodRef = useRef<'keyboard' | 'voice' | 'ocr' | 'mcq'>('keyboard')
 
   // Auto-scroll to bottom when new steps or feedback arrive
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [session.steps.length, lastFeedback])
+  }, [session.steps.length, loadingHintStepId])
+
+  // Adjust container padding when keyboard appears/disappears
+  const handleKeyboardVisibilityChange = (visible: boolean, height: number) => {
+    setKeyboardHeight(visible ? height : 0)
+  }
 
   const topicLabel = problem.topic.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 
   return (
-    <div className="flex flex-col h-screen max-w-[1024px] mx-auto bg-background shadow-2xl shadow-surface-variant/30 relative overflow-hidden">
+    <div
+      ref={containerRef}
+      className="flex flex-col h-screen max-w-[1024px] mx-auto bg-background shadow-2xl shadow-surface-variant/30 relative overflow-hidden"
+    >
       {/* ── Header ── */}
       <header className="bg-surface border-b border-border-subtle p-stack-md shrink-0 flex flex-col gap-stack-sm z-10">
         <div className="flex items-center justify-between">
@@ -127,13 +140,13 @@ function SolveProblemShell({ problem }: { problem: Problem }) {
             {problem.title}
           </p>
           <div className="bg-surface rounded border border-border-subtle shadow-sm mx-auto max-w-fit px-8 py-stack-sm">
-            <BlockMath math={problem.latex} />
+            <MixedMath text={problem.latex} block />
           </div>
         </div>
       </header>
 
       {/* ── Scrollable step history ── */}
-      <main className="flex-1 overflow-y-auto p-stack-md flex flex-col gap-stack-md scroll-smooth">
+      <main ref={mainRef} className="flex-1 overflow-y-auto p-stack-md flex flex-col gap-stack-md scroll-smooth">
         {session.steps.length === 0 && !session.solved && (
           <div className="flex flex-col items-center justify-center py-8 gap-3 text-secondary">
             <span className="material-symbols-outlined text-3xl">edit_note</span>
@@ -143,9 +156,7 @@ function SolveProblemShell({ problem }: { problem: Problem }) {
           </div>
         )}
 
-        <StepList steps={session.steps} />
-
-        {lastFeedback && <FeedbackBubble feedback={lastFeedback} />}
+        <StepList steps={session.steps} loadingStepId={loadingHintStepId ?? undefined} />
 
         {session.solved && (
           <div className="bg-correct/10 border border-correct/20 rounded-lg p-stack-md flex items-center gap-3 text-correct">
@@ -177,13 +188,31 @@ function SolveProblemShell({ problem }: { problem: Problem }) {
 
       {/* ── Input footer ── */}
       {!session.solved && (
-        <footer className="bg-surface border-t border-border-subtle p-stack-md flex flex-col gap-stack-sm shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.03)] shrink-0 z-10">
+        <footer
+          className="bg-surface border-t border-border-subtle p-stack-md flex flex-col gap-stack-sm shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.03)] shrink-0 z-10 transition-transform duration-150"
+          style={{ transform: keyboardHeight > 0 ? `translateY(-${keyboardHeight}px)` : 'translateY(0)' }}
+        >
           <MathInput
-            onSubmit={(latex) =>
-              submitStep({ rawInput: latex, latex, inputMethod: 'keyboard' })
-            }
+            onSubmit={(latex) => {
+              const method = pendingInputMethodRef.current
+              pendingInputMethodRef.current = 'keyboard'
+              setOcrLatex('')
+              submitStep({ rawInput: latex, latex, inputMethod: method })
+            }}
             disabled={isSubmitting}
             placeholder="Type your next step…"
+            injectedLatex={ocrLatex}
+            onInjectedConsumed={() => setOcrLatex('')}
+            onKeyboardVisibilityChange={handleKeyboardVisibilityChange}
+            handwrittenSlot={
+              <HandwrittenStepInput
+                onLatexReady={(latex) => {
+                  pendingInputMethodRef.current = 'ocr'
+                  setOcrLatex(latex)
+                }}
+                disabled={isSubmitting}
+              />
+            }
             voiceSlot={
               <VoiceInput
                 onResult={(latex, raw) =>

@@ -59,6 +59,7 @@ function ConfirmOcrContent() {
   const searchParams = useSearchParams()
   const [handoff, setHandoff] = useState<OcrHandoff | null>(null)
   const [missing, setMissing] = useState(false)
+  const [generatingSteps, setGeneratingSteps] = useState(false)
 
   useEffect(() => {
     const id = searchParams.get('id')
@@ -74,16 +75,40 @@ function ConfirmOcrContent() {
     setHandoff(found)
   }, [searchParams])
 
-  const handleConfirm = (confirmedLatex: string) => {
+  const handleConfirm = async (confirmedLatex: string) => {
+    setGeneratingSteps(true)
     const id = `ocr-${Date.now().toString(36)}`
+
+    let canonicalSteps: Problem['canonicalSteps'] = []
+    let finalAnswer = ''
+
+    try {
+      const res = await fetch('/api/generate-steps', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          latex: confirmedLatex,
+          diagramDescription: handoff?.diagram?.description ?? undefined,
+          topic: 'solving_equations'
+        })
+      })
+      if (res.ok) {
+        const data = await res.json() as { steps: Problem['canonicalSteps']; finalAnswer: string }
+        canonicalSteps = data.steps ?? []
+        finalAnswer = data.finalAnswer ?? ''
+      }
+    } catch (err) {
+      console.warn('[confirm-ocr] Step generation failed, proceeding without canonical steps:', err)
+    }
+
     const customProblem: Problem = {
       id,
       title: handoff?.diagram?.description?.slice(0, 80) || 'Your imported problem',
       latex: confirmedLatex,
       topic: 'solving_equations',
       difficulty: 'practice',
-      canonicalSteps: [],
-      finalAnswer: '',
+      canonicalSteps,
+      finalAnswer,
       diagram: handoff?.diagram ?? null
     }
     saveCustomProblem(customProblem)
@@ -130,6 +155,7 @@ function ConfirmOcrContent() {
       configured={handoff.configured}
       provider={handoff.provider}
       diagram={handoff.diagram}
+      generatingSteps={generatingSteps}
       onConfirm={handleConfirm}
       onCancel={() => router.back()}
     />

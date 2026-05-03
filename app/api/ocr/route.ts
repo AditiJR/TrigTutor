@@ -6,11 +6,12 @@ import type { OcrProvider, OcrResult } from '@/lib/types'
 export const runtime = 'nodejs'
 
 /**
- * OCR endpoint. Uses Gemini Flash Vision (GOOGLE_AI_API_KEY) as the primary
- * provider. Falls back to manual entry if no key is configured.
+ * OCR endpoint — Gemini Flash Vision for all modes.
  *
- * Free tier: 15 req/min, no credit card required.
- * Get a key at https://aistudio.google.com/apikey
+ * ?mode=step  skips diagram extraction (handwritten answer steps)
+ * default     full extraction including diagram structure (problem capture)
+ *
+ * Free tier: 15 req/min. Get a key at https://aistudio.google.com/apikey
  */
 export async function POST(req: NextRequest) {
   const rate = checkRateLimit(req, 'ocr')
@@ -33,43 +34,36 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'image_field_required' }, { status: 400 })
   }
 
+  const isStepMode = new URL(req.url).searchParams.get('mode') === 'step'
   const geminiConfigured = Boolean(process.env.GOOGLE_AI_API_KEY)
 
-  let result: OcrResult | null = null
-  const provider: OcrProvider = geminiConfigured ? 'gemini-vision' : 'none'
-
-  if (geminiConfigured) {
-    try {
-      const gv = await runGeminiVisionOcr(file)
-      if (gv.latex.trim() || gv.diagram) {
-        result = gv
-      }
-    } catch (err) {
-      console.error('[ocr] Gemini Vision failed:', err)
-      return NextResponse.json({ error: 'ocr_failed' }, { status: 502 })
-    }
-  }
-
-  // No result or no API key → manual entry
-  if (!result) {
+  if (!geminiConfigured) {
     return NextResponse.json({
       latex: '',
       confidence: 0,
       rawText: '',
       diagram: null,
       provider: 'none' as OcrProvider,
-      configured: geminiConfigured,
+      configured: false,
       needsConfirmation: true
     })
+  }
+
+  let result: OcrResult
+  try {
+    result = await runGeminiVisionOcr(file)
+  } catch (err) {
+    console.error('[ocr] Gemini Vision failed:', err)
+    return NextResponse.json({ error: 'ocr_failed' }, { status: 502 })
   }
 
   return NextResponse.json({
     latex: result.latex,
     confidence: result.confidence,
     rawText: result.rawText,
-    diagram: result.diagram ?? null,
-    provider,
-    configured: geminiConfigured,
+    diagram: isStepMode ? null : (result.diagram ?? null),
+    provider: result.provider,
+    configured: true,
     needsConfirmation: result.confidence < 0.85
   })
 }
