@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { geminiHttpStatus, geminiModelCandidates } from '@/lib/geminiModels'
 import type { CanonicalStep, TrigConcept } from '@/lib/types'
 
 export const runtime = 'nodejs'
-
-const MODEL = 'gemini-2.5-flash'
 
 /**
  * POST /api/generate-steps
@@ -35,27 +34,47 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'latex_required' }, { status: 400 })
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({ model: MODEL })
-
   const prompt = buildPrompt(latex, diagramDescription, topic)
 
+  const modelIds = geminiModelCandidates()
   let responseText = ''
-  const MAX_RETRIES = 3
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    try {
-      const result = await model.generateContent(prompt)
-      responseText = result.response.text()
-      break
-    } catch (err: unknown) {
-      const status = (err as { status?: number })?.status
-      if (status === 429 && attempt < MAX_RETRIES - 1) {
-        await new Promise((r) => setTimeout(r, (attempt + 1) * 15000))
-        continue
+  let lastError: unknown = null
+  const MAX_429_RETRIES = 3
+
+  outer: for (const modelId of modelIds) {
+    const genAI = new GoogleGenerativeAI(apiKey)
+    const model = genAI.getGenerativeModel({ model: modelId })
+
+    for (let attempt = 0; attempt < MAX_429_RETRIES; attempt++) {
+      try {
+        const result = await model.generateContent(prompt)
+        responseText = result.response.text()
+        if (modelIds.length > 1 && modelId !== modelIds[0]) {
+          console.warn(`[generate-steps] OK using fallback model "${modelId}"`)
+        }
+        break outer
+      } catch (err: unknown) {
+        lastError = err
+        const status = geminiHttpStatus(err)
+        if (status === 429 && attempt < MAX_429_RETRIES - 1) {
+          await new Promise((r) => setTimeout(r, (attempt + 1) * 15000))
+          continue
+        }
+        if (status === 404) {
+          console.warn(
+            `[generate-steps] Model not found for this API key (404): "${modelId}" — trying next`
+          )
+          continue outer
+        }
+        console.error('[generate-steps] Gemini error:', err)
+        return NextResponse.json({ error: 'ai_failed' }, { status: 502 })
       }
-      console.error('[generate-steps] Gemini error:', err)
-      return NextResponse.json({ error: 'ai_failed' }, { status: 502 })
     }
+  }
+
+  if (!responseText.trim()) {
+    console.error('[generate-steps] All models failed:', lastError)
+    return NextResponse.json({ error: 'ai_failed' }, { status: 502 })
   }
 
   let parsed: unknown
@@ -193,7 +212,8 @@ function normalizeConceptTag(raw: unknown): TrigConcept {
 
 function extractJson(text: string): string {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/)
-  if (fenced) return fenced[1].trim()
+  const inner = fenced?.[1]
+  if (inner != null && inner.trim()) return inner.trim()
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
   if (start === -1 || end === -1) return text

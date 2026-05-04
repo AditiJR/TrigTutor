@@ -1,51 +1,62 @@
 import type { Problem, Step } from './types'
 
 /**
- * LOCKED — do not modify without discussion. See CLAUDE.md ("The Socratic hint prompt").
- *
- * The model is told the verdict was already produced by SymPy. Its job is to phrase the
- * next guiding question, never to decide correctness.
+ * Returns true when the LaTeX looks like a solved final answer: `x = 3`, `θ = 30°`, etc.
+ * Used to give Claude an unambiguous signal instead of letting it guess.
  */
-export const SOCRATIC_HINT_SYSTEM_PROMPT = `
-You are a patient Socratic tutor helping a high-school student learn trigonometry.
-
-You will be given:
-- The original problem
-- All the steps the student has written so far
-- The student's most recent step
-- A verdict from a symbolic math engine (already computed) saying whether the step is correct
-- The trig concept this step involves
-
-Your job: write a SHORT guiding response (1-2 sentences) following these rules.
-
-If the verdict is "correct":
-- Confirm warmly without revealing what comes next.
-- Ask a question that prompts them toward the next step.
-- Reference the concept by name when natural.
-
-If the verdict is "incorrect":
-- Do NOT tell them what the right answer is.
-- Do NOT tell them what step to take next.
-- Identify the specific misconception based on the "reason" field.
-- Ask a question that surfaces the misconception so they can find it themselves.
-
-If the verdict is "unparseable":
-- Ask them gently to clarify or rewrite their step.
-
-Always include a short encouraging phrase, even when wrong.
-
-Respond ONLY in this exact JSON format:
-{
- "socraticHint": "Your 1-2 sentence guiding question",
- "encouragement": "Short positive phrase",
- "conceptToReview": "concept_tag" or null
+export function looksLikeFinalAnswer(latex: string): boolean {
+  const s = latex.trim()
+  // Must contain exactly one = with no second =
+  if (!s.includes('=') || s.indexOf('=') !== s.lastIndexOf('=')) return false
+  const [lhs, rhs] = s.split('=')
+  if (!lhs || !rhs) return false
+  const lhsTrimmed = lhs.trim()
+  const rhsTrimmed = rhs.trim()
+  // LHS must be a single variable: letter(s), possibly preceded by \ (LaTeX command like \theta)
+  if (!/^\\?[a-zA-Zα-ωΑ-Ωθφλαβγ]+$/.test(lhsTrimmed)) return false
+  // RHS must not contain unsimplified binary operations (but allow \frac, \sqrt, \pi etc.)
+  const rhsNoCommands = rhsTrimmed.replace(/\\[a-zA-Z]+/g, 'X').replace(/\{[^{}]*\}/g, 'N')
+  const hasUnsolvedOps = /[+\-]/.test(rhsNoCommands) || /\^/.test(rhsNoCommands)
+  return !hasUnsolvedOps
 }
 
-Rules you must never break:
-1. NEVER state the answer or next step.
-2. NEVER write a full worked solution.
-3. NEVER say "the answer is..." even partially.
-4. Keep it under 40 words total.
+export const SOCRATIC_HINT_SYSTEM_PROMPT = `
+You are a Socratic tutor for high-school trigonometry and geometry.
+
+Your only job is to write a SHORT forward-looking question (1-2 sentences) based on the verdict already computed by a math engine. You must NEVER decide correctness yourself.
+
+ABSOLUTE RULES — violating any of these is wrong output:
+1. NEVER say "finish", "finished", "great finish", "you're done", "that's it", or anything implying the student is complete — UNLESS the field PROBLEM_SOLVED says YES.
+2. NEVER reveal the next step, the answer, or any part of the solution.
+3. NEVER write a full worked solution.
+4. Keep total response under 40 words.
+5. Respond ONLY in this exact JSON — no prose outside it:
+{
+  "socraticHint": "...",
+  "encouragement": "...",
+  "conceptToReview": "concept_tag or null"
+}
+
+HOW TO RESPOND based on the verdict:
+
+verdict = "correct", PROBLEM_SOLVED = NO, step is a MATH expression:
+  → Confirm the step was right in one short phrase, then ask ONE question that nudges them toward their next algebraic move without revealing it.
+  → Look at all the previous steps — do NOT ask them to do something they already did.
+  → Example tone: "Nice rearrangement — what does that simplify to on the right side?"
+
+verdict = "correct", PROBLEM_SOLVED = NO, step is a TEXT ANNOTATION (no math symbols):
+  → The student just wrote a label or note, not a new equation.
+  → Look at the previous steps. If prior steps already contain the equation, acknowledge the label and ask about the NEXT algebraic move from there — do NOT ask them to write an equation they already wrote.
+  → If no prior math steps exist, ask them to now write the equation.
+
+verdict = "correct", PROBLEM_SOLVED = YES:
+  → Congratulate them — they've found the answer. Ask them to sanity-check it in context.
+
+verdict = "incorrect":
+  → Do NOT say what's right. Ask a question that surfaces the specific error described in REASON.
+
+verdict = "unparseable":
+  → Gently ask them to rewrite their step as a math expression.
 `.trim()
 
 export const buildHintUserPrompt = (
@@ -55,20 +66,36 @@ export const buildHintUserPrompt = (
 ): string => {
   const priorSteps = allSteps
     .slice(0, -1)
-    .map((s, i) => `${i + 1}. ${s.latex} — ${s.validation?.status ?? 'pending'}`)
+    .map((s, i) => {
+      const status = s.validation?.status ?? 'pending'
+      const prevHint = s.hint?.socraticHint ? ` → tutor said: "${s.hint.socraticHint}"` : ''
+      return `${i + 1}. ${s.latex} — ${status}${prevHint}`
+    })
     .join('\n')
+
+  const stepLatex = newStep.latex
+  const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase()
+  // Solved if: looks like "x = value", OR step is correct and matches the problem's known final answer
+  const isSolved =
+    looksLikeFinalAnswer(stepLatex) ||
+    (newStep.validation?.status === 'correct' &&
+      problem.finalAnswer.length > 0 &&
+      norm(stepLatex) === norm(problem.finalAnswer))
+  const isTextAnnotation = !/[\\^_{$()\d]/.test(stepLatex) && !/[=+\-*/]/.test(stepLatex)
 
   return `
 Problem: ${problem.latex}
 Topic: ${problem.topic}
 
-Previous steps:
-${priorSteps || '(none)'}
+Previous steps (with prior tutor responses):
+${priorSteps || '(none — this is the first step)'}
 
-Student's new step: ${newStep.latex}
+Student's new step: ${stepLatex}
+Step type: ${isTextAnnotation ? 'TEXT ANNOTATION (no math symbols)' : 'MATH EXPRESSION'}
 
-Symbolic engine verdict: ${newStep.validation?.status ?? 'unknown'}
+Verdict: ${newStep.validation?.status ?? 'unknown'}
 Reason: ${newStep.validation?.reason ?? 'unknown'}
-Detected concept: ${newStep.validation?.detectedConcept ?? 'unknown'}
+Concept: ${newStep.validation?.detectedConcept ?? 'unknown'}
+PROBLEM_SOLVED: ${isSolved ? 'YES' : 'NO'}
 `.trim()
 }

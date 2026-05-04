@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+import Anthropic, { APIError } from '@anthropic-ai/sdk'
 import { SOCRATIC_HINT_SYSTEM_PROMPT, buildHintUserPrompt } from './prompts'
 import type { HintRequest, HintResult, Problem } from './types'
 
@@ -6,10 +6,62 @@ const MODEL = 'claude-sonnet-4-5'
 
 let cachedClient: Anthropic | null = null
 
+function anthropicEffectiveApiKey(): string | null {
+  const raw = process.env.ANTHROPIC_API_KEY
+  if (typeof raw !== 'string' || raw.trim() === '') return null
+  return raw.trim()
+}
+
+function logStubBecauseNoApiKey(): void {
+  const raw = process.env.ANTHROPIC_API_KEY
+  if (raw === undefined) {
+    console.warn(
+      '[claude] Stub hint: ANTHROPIC_API_KEY is undefined — not present in process.env.'
+    )
+    console.warn(
+      '[claude] Fix: Set ANTHROPIC_API_KEY in .env.local and restart `next dev` (Next loads env at startup).'
+    )
+    return
+  }
+  console.warn(
+    '[claude] Stub hint: ANTHROPIC_API_KEY is blank or whitespace-only after trim.'
+  )
+}
+
+/** Safe JSON-ish dump of failures from `@anthropic-ai/sdk` HTTP layer. */
+function anthropicErrorDetail(err: unknown): Record<string, unknown> {
+  if (err instanceof APIError) {
+    const body = err.error
+    return {
+      kind: 'APIError',
+      message: err.message,
+      status: err.status ?? null,
+      requestId: err.request_id ?? null,
+      errorPayload: typeof body === 'object' && body !== null ? body : { raw: body }
+    }
+  }
+  if (err instanceof Error) {
+    const detail: Record<string, unknown> = {
+      kind: err.name || 'Error',
+      message: err.message
+    }
+    if ('cause' in err && err.cause !== undefined) {
+      detail.cause =
+        err.cause instanceof Error ? err.cause.message : JSON.stringify(err.cause)
+    }
+    return detail
+  }
+  return { kind: 'unknown', value: String(err) }
+}
+
 function getClient(): Anthropic | null {
-  if (!process.env.ANTHROPIC_API_KEY) return null
+  const apiKey = anthropicEffectiveApiKey()
+  if (!apiKey) {
+    logStubBecauseNoApiKey()
+    return null
+  }
   if (!cachedClient) {
-    cachedClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    cachedClient = new Anthropic({ apiKey })
   }
   return cachedClient
 }
@@ -23,19 +75,25 @@ export async function generateSocraticHint(
   req: HintRequest
 ): Promise<HintResult> {
   const client = getClient()
-  if (!client) {
-    console.warn('[claude] No ANTHROPIC_API_KEY — returning stub hint.')
-    return stubHint(req)
-  }
+  if (!client) return stubHint(req)
 
   const userPrompt = buildHintUserPrompt(req.problem, req.allSteps, req.newStep)
 
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 256,
-    system: SOCRATIC_HINT_SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: userPrompt }]
-  })
+  let response
+  try {
+    response = await client.messages.create({
+      model: MODEL,
+      max_tokens: 256,
+      system: SOCRATIC_HINT_SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: userPrompt }]
+    })
+  } catch (err) {
+    console.error(
+      '[claude] Anthropic messages.create failed — returning stub hint. SDK detail:',
+      JSON.stringify(anthropicErrorDetail(err), null, 2)
+    )
+    return stubHint(req)
+  }
 
   const textBlock = response.content.find((c) => c.type === 'text')
   const text = textBlock && textBlock.type === 'text' ? textBlock.text : ''

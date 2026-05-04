@@ -1,3 +1,4 @@
+import { APIError } from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { generateSocraticHint } from '@/lib/claude'
 import { checkRateLimit } from '@/lib/rateLimit'
@@ -32,7 +33,18 @@ export async function POST(req: NextRequest) {
     const result = await generateSocraticHint(body)
     return NextResponse.json(result)
   } catch (err) {
-    console.error('Hint generation failed:', err)
+    const detail =
+      err instanceof APIError
+        ? {
+            message: err.message,
+            status: err.status,
+            request_id: err.request_id,
+            error: err.error
+          }
+        : err instanceof Error
+          ? { message: err.message, name: err.name }
+          : { message: String(err) }
+    console.error('Hint generation failed:', JSON.stringify(detail, null, 2))
     return NextResponse.json({ error: 'hint_unavailable' }, { status: 502 })
   }
 }

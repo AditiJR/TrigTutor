@@ -2,25 +2,13 @@ import {
   GoogleGenerativeAI,
   type GenerativeModel
 } from '@google/generative-ai'
+import { geminiHttpStatus, geminiModelCandidates } from './geminiModels'
 import type {
   Diagram,
   DiagramQuantity,
   DiagramShape,
   OcrResult
 } from './types'
-
-const MODEL = 'gemini-2.5-flash'
-
-let cachedModel: GenerativeModel | null = null
-
-function getModel(): GenerativeModel | null {
-  if (!process.env.GOOGLE_AI_API_KEY) return null
-  if (!cachedModel) {
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY)
-    cachedModel = genAI.getGenerativeModel({ model: MODEL })
-  }
-  return cachedModel
-}
 
 /**
  * Extract LaTeX + structured diagram facts from a trig problem image.
@@ -29,8 +17,8 @@ function getModel(): GenerativeModel | null {
  * IMPORTANT: perception only — never solves or evaluates.
  */
 export async function runGeminiVisionOcr(file: File): Promise<OcrResult> {
-  const model = getModel()
-  if (!model) {
+  const apiKey = process.env.GOOGLE_AI_API_KEY
+  if (!apiKey) {
     return { latex: '', confidence: 0, rawText: '', provider: 'none' }
   }
 
@@ -38,28 +26,50 @@ export async function runGeminiVisionOcr(file: File): Promise<OcrResult> {
   const base64 = Buffer.from(arrayBuffer).toString('base64')
   const mimeType = inferMimeType(file)
 
+  const parts: Parameters<GenerativeModel['generateContent']>[0] = [
+    VISION_SYSTEM_PROMPT,
+    { inlineData: { data: base64, mimeType } },
+    VISION_USER_PROMPT
+  ]
+
+  const modelIds = geminiModelCandidates()
   let responseText = ''
-  const MAX_RETRIES = 3
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    try {
-      const result = await model.generateContent([
-        VISION_SYSTEM_PROMPT,
-        { inlineData: { data: base64, mimeType } },
-        VISION_USER_PROMPT
-      ])
-      responseText = result.response.text()
-      break
-    } catch (err: unknown) {
-      const status = (err as { status?: number })?.status
-      if (status === 429 && attempt < MAX_RETRIES - 1) {
-        const waitMs = (attempt + 1) * 15000 // 15s, 30s
-        console.warn(`[geminiVision] Rate limited, retrying in ${waitMs / 1000}s...`)
-        await new Promise((r) => setTimeout(r, waitMs))
-        continue
+  let lastError: unknown = null
+  const MAX_429_RETRIES = 3
+
+  outer: for (const modelId of modelIds) {
+    const genAI = new GoogleGenerativeAI(apiKey)
+    const model = genAI.getGenerativeModel({ model: modelId })
+
+    for (let attempt = 0; attempt < MAX_429_RETRIES; attempt++) {
+      try {
+        const result = await model.generateContent(parts)
+        responseText = result.response.text()
+        if (modelIds.length > 1 && modelId !== modelIds[0]) {
+          console.warn(`[geminiVision] OK using fallback model "${modelId}"`)
+        }
+        break outer
+      } catch (err: unknown) {
+        lastError = err
+        const status = geminiHttpStatus(err)
+        if (status === 429 && attempt < MAX_429_RETRIES - 1) {
+          const waitMs = (attempt + 1) * 15000
+          console.warn(`[geminiVision] Rate limited (${modelId}), retry in ${waitMs / 1000}s`)
+          await new Promise((r) => setTimeout(r, waitMs))
+          continue
+        }
+        if (status === 404) {
+          console.warn(`[geminiVision] Model not found (404): "${modelId}" — trying next`)
+          continue outer
+        }
+        console.error('[geminiVision] API error:', err)
+        throw err
       }
-      console.error('[geminiVision] API error:', err)
-      throw err
     }
+  }
+
+  if (!responseText.trim() && lastError) {
+    throw lastError instanceof Error ? lastError : new Error(String(lastError))
   }
 
   if (!responseText.trim()) {
@@ -158,7 +168,8 @@ type VisionResponseShape = {
 function extractJson(text: string): string {
   // Strip markdown code fences if present
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/)
-  if (fenced) return fenced[1].trim()
+  const inner = fenced?.[1]
+  if (inner != null && inner.trim()) return inner.trim()
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
   if (start === -1 || end === -1) return text

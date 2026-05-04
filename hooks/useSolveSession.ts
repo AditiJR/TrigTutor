@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useReducer, useState } from 'react'
 import { normalizeStepLatex, splitIntoSteps } from '@/lib/stepParser'
+import { looksLikeFinalAnswer } from '@/lib/prompts'
 import type {
   HintRequest,
   HintResult,
@@ -69,6 +70,7 @@ export function useSolveSession(problem: Problem) {
   const [session, dispatch] = useReducer(reducer, problem, initialSession)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [lastFeedback, setLastFeedback] = useState<HintResult | null>(null)
+  const [loadingHintStepId, setLoadingHintStepId] = useState<string | null>(null)
   const sessionId = useMemo(() => crypto.randomUUID(), [])
 
   const previousLatex = useMemo(() => {
@@ -102,31 +104,45 @@ export function useSolveSession(problem: Problem) {
           draftSteps.push(step)
           dispatch({ type: 'append_step', step })
 
+          // OCR-imported problems have Gemini-generated canonical steps that represent
+          // only one possible solution path. Passing them to the validator would reject
+          // any approach the student takes that differs from Gemini's guess. Instead,
+          // use lenient mode (empty canonical + no final answer) so any parseable
+          // expression is accepted and the Socratic hint does the guiding.
+          const isOcrProblem = problem.id.startsWith('ocr-')
           const validateBody: ValidationRequest = {
             problemId: problem.id,
             previousLatex: rollingPrevious,
             newStepLatex: normalized,
-            expectedFinalAnswer: problem.finalAnswer,
-            canonicalSteps: problem.canonicalSteps
+            expectedFinalAnswer: isOcrProblem ? '' : problem.finalAnswer,
+            canonicalSteps: isOcrProblem ? [] : problem.canonicalSteps
           }
 
           const validation = await postJson<ValidationResult>('/api/validate', validateBody, sessionId)
           dispatch({ type: 'attach_validation', stepId: step.id, validation })
 
           const stepWithValidation: Step = { ...step, validation }
+
+          setLoadingHintStepId(step.id)
           const hintBody: HintRequest = {
             problem,
             allSteps: [...draftSteps.slice(0, -1), stepWithValidation],
             newStep: stepWithValidation
           }
-          const hint = await postJson<HintResult>('/api/hint', hintBody, sessionId)
+          let hint: HintResult
+          try {
+            hint = await postJson<HintResult>('/api/hint', hintBody, sessionId)
+          } catch {
+            hint = { socraticHint: 'Keep going — what is your next step?', encouragement: '', conceptToReview: null }
+          }
+          setLoadingHintStepId(null)
           dispatch({ type: 'attach_hint', stepId: step.id, hint })
           setLastFeedback(hint)
 
           if (
             validation.status === 'correct' &&
-            problem.finalAnswer &&
-            isFinalAnswer(normalized, problem.finalAnswer)
+            (looksLikeFinalAnswer(normalized) ||
+              (problem.finalAnswer && isFinalAnswer(normalized, problem.finalAnswer)))
           ) {
             dispatch({ type: 'mark_solved' })
           }
@@ -147,7 +163,7 @@ export function useSolveSession(problem: Problem) {
     [previousLatex, problem, session.steps, sessionId]
   )
 
-  return { session, submitStep, lastFeedback, isSubmitting }
+  return { session, submitStep, lastFeedback, isSubmitting, loadingHintStepId }
 }
 
 async function postJson<T>(url: string, body: unknown, sessionId: string): Promise<T> {
