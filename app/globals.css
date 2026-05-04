@@ -6,6 +6,15 @@
 
 :root {
   color-scheme: light;
+
+  /* Compact MathLive virtual keyboard */
+  --keycap-height: 42px;
+  --keycap-font-size: 13px;
+  --keycap-glyph-size: 18px;
+  --keycap-gap: 3px;
+  --keyboard-padding-top: 4px;
+  --keyboard-padding-bottom: 4px;
+  --keyboard-toolbar-font-size: 13px;
 }
 
 html,

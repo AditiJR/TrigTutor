@@ -38,13 +38,10 @@ export function splitIntoSteps(rawLatex: string): ParsedSteps {
     if (ch === '[' && prev !== '\\') bracketDepth += 1
     if (ch === ']' && prev !== '\\' && bracketDepth > 0) bracketDepth -= 1
 
-    // split on top-level punctuation separators
-    if (atTopLevel && (ch === ';' || ch === ',')) {
+    // split on semicolons only — commas are too ambiguous (lists, coordinates, sets)
+    if (atTopLevel && ch === ';') {
       const candidate = buffer.trim()
-      if (candidate) {
-        parts.push(candidate)
-        splitOn.push(ch)
-      }
+      if (candidate) { parts.push(candidate); splitOn.push(ch) }
       buffer = ''
       i += 1
       continue
@@ -97,6 +94,7 @@ export function normalizeStepLatex(input: string): string {
     .trim()
     .replace(/^\$\$?([\s\S]+?)\$?\$$/s, (_, inner) => inner.trim())
     .replace(/^so\s+/i, '')
+    .replace(/^\\(?:implies|therefore|Rightarrow)\s*/i, '')
     .replace(/^=+\s*/, '')
     .replace(/\s+/g, ' ')
 }

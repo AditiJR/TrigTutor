@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 declare global {
   namespace JSX {
@@ -164,7 +164,7 @@ export function MathInput({
     mvk.hide({ animate: true })
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
     const latex = value.trim()
     if (!latex || disabled) return
     onSubmit(latex)
@@ -181,7 +181,7 @@ export function MathInput({
       }
       field.focus()
     }
-  }
+  }, [value, disabled, onSubmit, inputMode])
 
   const switchMode = (mode: InputMode) => {
     setInputMode(mode)
@@ -200,11 +200,16 @@ export function MathInput({
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      handleSubmit()
+  // Cmd/Ctrl+Enter to submit — use native listener so it doesn't interfere with MathLive
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        handleSubmit()
+      }
     }
-  }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [handleSubmit])
 
   return (
     <>
@@ -241,7 +246,6 @@ export function MathInput({
         <div
           ref={inputContainerRef}
           className="relative bg-surface rounded-lg border border-outline-variant ring-0 focus-within:ring-2 focus-within:ring-primary/30 focus-within:border-primary shadow-sm min-h-[80px] transition-shadow cursor-text"
-          onKeyDown={handleKeyDown}
           onClick={() => {
             if (inputMode === 'math') fieldRef.current?.focus()
             else textareaRef.current?.focus()

@@ -6,12 +6,18 @@ import type { Problem, Step } from './types'
  */
 export function looksLikeFinalAnswer(latex: string): boolean {
   const s = latex.trim()
-  // Matches: <single letter or word> = <pure number / fraction / simple expression with no variables>
-  // e.g.  x = 3,  θ = 30,  h = \frac{5}{2},  x = \sqrt{9}
-  // Rejects: x^2 = 9,  x = 5^2 - 4^2,  4^2 + x^2 = 5^2
-  const finalForm = /^[a-zA-Zα-ωΑ-Ω\\θ]+\s*=\s*[^=+\-*x^]+$/.test(s)
-  const hasUnsolvedOps = /[\^]/.test(s.replace(/\\[a-z]+/g, '')) || /[+\-]/.test(s.split('=')[1] ?? '')
-  return finalForm && !hasUnsolvedOps
+  // Must contain exactly one = with no second =
+  if (!s.includes('=') || s.indexOf('=') !== s.lastIndexOf('=')) return false
+  const [lhs, rhs] = s.split('=')
+  if (!lhs || !rhs) return false
+  const lhsTrimmed = lhs.trim()
+  const rhsTrimmed = rhs.trim()
+  // LHS must be a single variable: letter(s), possibly preceded by \ (LaTeX command like \theta)
+  if (!/^\\?[a-zA-Zα-ωΑ-Ωθφλαβγ]+$/.test(lhsTrimmed)) return false
+  // RHS must not contain unsimplified binary operations (but allow \frac, \sqrt, \pi etc.)
+  const rhsNoCommands = rhsTrimmed.replace(/\\[a-zA-Z]+/g, 'X').replace(/\{[^{}]*\}/g, 'N')
+  const hasUnsolvedOps = /[+\-]/.test(rhsNoCommands) || /\^/.test(rhsNoCommands)
+  return !hasUnsolvedOps
 }
 
 export const SOCRATIC_HINT_SYSTEM_PROMPT = `
@@ -68,8 +74,14 @@ export const buildHintUserPrompt = (
     .join('\n')
 
   const stepLatex = newStep.latex
-  const isSolved = looksLikeFinalAnswer(stepLatex)
-  const isTextAnnotation = !/[\\^_{$]/.test(stepLatex)
+  const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase()
+  // Solved if: looks like "x = value", OR step is correct and matches the problem's known final answer
+  const isSolved =
+    looksLikeFinalAnswer(stepLatex) ||
+    (newStep.validation?.status === 'correct' &&
+      problem.finalAnswer.length > 0 &&
+      norm(stepLatex) === norm(problem.finalAnswer))
+  const isTextAnnotation = !/[\\^_{$()\d]/.test(stepLatex) && !/[=+\-*/]/.test(stepLatex)
 
   return `
 Problem: ${problem.latex}

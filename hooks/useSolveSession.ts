@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useReducer, useState } from 'react'
 import { normalizeStepLatex, splitIntoSteps } from '@/lib/stepParser'
+import { looksLikeFinalAnswer } from '@/lib/prompts'
 import type {
   HintRequest,
   HintResult,
@@ -140,8 +141,8 @@ export function useSolveSession(problem: Problem) {
 
           if (
             validation.status === 'correct' &&
-            problem.finalAnswer &&
-            isFinalAnswer(normalized, problem.finalAnswer)
+            (looksLikeFinalAnswer(normalized) ||
+              (problem.finalAnswer && isFinalAnswer(normalized, problem.finalAnswer)))
           ) {
             dispatch({ type: 'mark_solved' })
           }
