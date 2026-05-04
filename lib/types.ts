@@ -30,6 +30,9 @@ export type Problem = {
   /** Optional structured diagram facts captured at OCR time. Used by the
    * validator and hint generator when present. */
   diagram?: Diagram | null
+  /** Original uploaded image as a data URL (OCR flow only). Shown on the solve
+   * page so diagrams in photos are not lost after LaTeX extraction. */
+  sourceImageDataUrl?: string | null
 }
 
 export type InputMethod = 'voice' | 'keyboard' | 'ocr' | 'mcq'
@@ -46,6 +49,13 @@ export type ValidationResult = {
   detectedConcept: TrigConcept | null
   symbolicForm: string
   reason: string
+  /** New currentStepIndex after applying this verdict. Equals the request's
+   * currentStepIndex when no advance happened. Equals canonicalSteps.length
+   * when the problem is solved. */
+  advanceTo: number
+  /** Canonical step indices that the student bypassed but which we credit as
+   * implicitly completed (skip-ahead). Empty for normal step-by-step progress. */
+  skippedSteps: number[]
 }
 
 export type HintResult = {
@@ -64,12 +74,33 @@ export type Step = {
   timestamp: number
 }
 
+export type StepStatus = 'pending' | 'active' | 'completed'
+export type StepCompletedBy = 'student' | 'inferred'
+
+/** Backend-only state machine record for a single canonical step. Never rendered. */
+export type SessionStep = {
+  canonicalIndex: number
+  description: string
+  conceptTag: TrigConcept
+  status: StepStatus
+  /** Student attempts that targeted this step. Empty for inferred completions. */
+  attempts: Step[]
+  completedBy: StepCompletedBy | null
+  completedAt: number | null
+}
+
 export type SolveSession = {
   problemId: string
   steps: Step[]
+  /** Backend-only: per-canonical-step state. Drives locking and skip-ahead. */
+  sessionSteps: SessionStep[]
+  /** Pointer into sessionSteps. Monotonically non-decreasing. When equal to
+   * sessionSteps.length, the problem is solved. */
+  currentStepIndex: number
   solved: boolean
   startedAt: number
   apiCallCount: number
+  initialHintShown: boolean
 }
 
 export type ValidationRequest = {
@@ -78,12 +109,28 @@ export type ValidationRequest = {
   newStepLatex: string
   expectedFinalAnswer: string
   canonicalSteps?: CanonicalStep[]
+  /** Where the session pointer sits when this submission was made. The Python
+   * service evaluates against canonicalSteps[currentStepIndex] first, then
+   * scans forward for skip-ahead matches. */
+  currentStepIndex?: number
 }
 
+export type HintKind = 'initial' | 'after_step'
+
 export type HintRequest = {
+  /** "initial" = produce an opening Socratic question for step 0 with no student
+   * attempt yet. "after_step" = standard verdict-conditioned hint. Defaults to
+   * "after_step" for back-compat. */
+  kind?: HintKind
   problem: Problem
   allSteps: Step[]
-  newStep: Step
+  /** Required when kind === 'after_step'. Omit for kind === 'initial'. */
+  newStep?: Step | null
+  /** Pointer into canonicalSteps for the now-active step (used to inject step
+   * description / concept into the prompt). */
+  currentStepIndex?: number
+  /** Canonical indices the validator credited via skip-ahead. */
+  skippedSteps?: number[]
 }
 
 /** Which OCR backend produced this result. */

@@ -6,6 +6,8 @@ import { MixedMath } from './MixedMath'
 type Props = {
   steps: Step[]
   loadingStepId?: string   // ID of the step currently awaiting its hint
+  /** When true, hide per-step tutor hints so the completion banner is the only message. */
+  sessionSolved?: boolean
 }
 
 const STATUS_CONFIG: Record<
@@ -39,7 +41,7 @@ const STATUS_CONFIG: Record<
   }
 }
 
-export function StepList({ steps, loadingStepId }: Props) {
+export function StepList({ steps, loadingStepId, sessionSolved = false }: Props) {
   if (steps.length === 0) {
     return (
       <p className="font-body-sm text-body-sm italic text-secondary px-1">
@@ -82,20 +84,20 @@ export function StepList({ steps, loadingStepId }: Props) {
 
               {/* Math expression */}
               <div
-                className={`font-math text-math text-center py-stack-sm text-on-surface ${config?.mathClass ?? ''}`}
+                className={`min-w-0 max-w-full py-stack-sm text-center font-math text-math text-on-surface ${config?.mathClass ?? ''}`}
               >
                 <MixedMath text={step.latex} />
               </div>
             </div>
 
             {/* Inline hint — shown below the step card */}
-            {hintLoading && (
+            {hintLoading && !sessionSolved && (
               <div className="ml-4 bg-surface-bright border border-border-subtle border-l-4 border-l-primary/30 rounded-r-lg rounded-l-sm px-stack-md py-3 flex items-center gap-2 text-secondary">
                 <span className="material-symbols-outlined text-[18px] animate-spin">refresh</span>
                 <span className="font-body-sm text-body-sm">Tutor is thinking…</span>
               </div>
             )}
-            {hint && (
+            {hint && !sessionSolved && (
               <div className="ml-4 bg-surface-bright border border-border-subtle border-l-4 border-l-primary rounded-r-lg rounded-l-sm px-stack-md py-stack-sm flex flex-col gap-1">
                 <div className="flex items-center gap-1.5 text-primary">
                   <span

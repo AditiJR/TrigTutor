@@ -46,7 +46,7 @@ function TopicBadge({ topic }: { topic: Problem['topic'] }) {
 function ProblemCard({ problem }: { problem: Problem }) {
   return (
     <Link href={`/solve/${problem.id}`} className="block group h-full">
-      <article className="bg-surface border border-border-subtle rounded-lg shadow-sm p-5 flex flex-col gap-3 hover:border-primary-fixed transition-colors cursor-pointer h-full min-h-[260px]">
+      <article className="min-w-0 max-w-full flex h-full min-h-[260px] cursor-pointer flex-col gap-3 rounded-lg border border-border-subtle bg-surface p-5 shadow-sm transition-colors hover:border-primary-fixed">
         <div className="flex justify-between items-start gap-2">
           <TopicBadge topic={problem.topic} />
           <DifficultyBadge difficulty={problem.difficulty} />
@@ -54,8 +54,8 @@ function ProblemCard({ problem }: { problem: Problem }) {
         <h3 className="font-body text-body font-semibold text-on-surface line-clamp-2">
           {problem.title}
         </h3>
-        <div className="bg-surface-container-low p-4 rounded text-center border border-outline-variant/30 flex-grow flex items-center justify-center min-h-[80px] overflow-hidden">
-          <div className="text-on-surface text-[14px] max-w-full overflow-x-auto overflow-y-hidden">
+        <div className="flex min-h-[80px] min-w-0 flex-grow items-center justify-center overflow-hidden rounded border border-outline-variant/30 bg-surface-container-low p-4 text-center">
+          <div className="max-w-full min-w-0 overflow-x-auto overflow-y-hidden text-[14px] text-on-surface">
             <InlineMath math={problem.latex} />
           </div>
         </div>

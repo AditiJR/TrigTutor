@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+import { ImageCaptureDialog } from '@/components/ImageCaptureDialog'
 import { saveOcrHandoff } from '@/lib/ocrHandoff'
 import type { OcrResult } from '@/lib/types'
 
@@ -11,12 +12,12 @@ const MAX_INLINE_PREVIEW_BYTES = 4 * 1024 * 1024
 export function ImageUpload() {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const cameraInputRef = useRef<HTMLInputElement>(null)
   const busyRef = useRef(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [progressMsg, setProgressMsg] = useState('')
   const [dragging, setDragging] = useState(false)
+  const [captureDialogOpen, setCaptureDialogOpen] = useState(false)
 
   const handleFile = async (file: File) => {
     if (busyRef.current) return
@@ -36,8 +37,7 @@ export function ImageUpload() {
     setProgressMsg('Reading image…')
 
     try {
-      const previewUrl =
-        file.size <= MAX_INLINE_PREVIEW_BYTES ? await fileToDataUrl(file) : null
+      const previewUrl = await previewDataUrlForHandoff(file)
 
       setProgressMsg('Extracting the problem…')
       const form = new FormData()
@@ -69,7 +69,6 @@ export function ImageUpload() {
     }
   }
 
-  // Paste from clipboard (Ctrl/Cmd+V anywhere on the page)
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
       if (busyRef.current) return
@@ -87,7 +86,7 @@ export function ImageUpload() {
     }
     document.addEventListener('paste', onPaste)
     return () => document.removeEventListener('paste', onPaste)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const onDrop = (e: React.DragEvent) => {
@@ -97,9 +96,11 @@ export function ImageUpload() {
     if (f) void handleFile(f)
   }
 
-  const onDragOver = (e: React.DragEvent) => { e.preventDefault(); setDragging(true) }
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragging(true)
+  }
   const onDragLeave = (e: React.DragEvent) => {
-    // only clear when leaving the drop zone entirely, not child elements
     if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false)
   }
 
@@ -111,7 +112,6 @@ export function ImageUpload() {
 
   return (
     <div className="w-full flex flex-col gap-3">
-      {/* Drop zone */}
       <div
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
@@ -124,11 +124,12 @@ export function ImageUpload() {
         className={`
           relative rounded-xl border-2 border-dashed transition-all cursor-pointer select-none
           flex flex-col items-center justify-center gap-3 px-6 py-8 text-center
-          ${dragging
-            ? 'border-primary bg-primary/8 scale-[1.01]'
-            : busy
-              ? 'border-outline-variant bg-surface-container-low cursor-not-allowed opacity-70'
-              : 'border-outline-variant hover:border-primary hover:bg-primary/5'
+          ${
+            dragging
+              ? 'border-primary bg-primary/8 scale-[1.01]'
+              : busy
+                ? 'border-outline-variant bg-surface-container-low cursor-not-allowed opacity-70'
+                : 'border-outline-variant hover:border-primary hover:bg-primary/5'
           }
         `}
       >
@@ -157,15 +158,14 @@ export function ImageUpload() {
                 Or press{' '}
                 <kbd className="px-1.5 py-0.5 rounded bg-surface-container border border-outline-variant font-mono text-xs">
                   Ctrl+V
-                </kbd>
-                {' '}to paste a screenshot
+                </kbd>{' '}
+                to paste a screenshot
               </p>
             </div>
           </>
         )}
       </div>
 
-      {/* Action buttons row */}
       {!busy && (
         <div className="flex gap-2 flex-wrap">
           <button
@@ -178,7 +178,7 @@ export function ImageUpload() {
           </button>
           <button
             type="button"
-            onClick={() => cameraInputRef.current?.click()}
+            onClick={() => !busy && setCaptureDialogOpen(true)}
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-outline text-secondary hover:border-primary hover:text-primary hover:bg-primary/5 font-label text-label transition-colors"
           >
             <span className="material-symbols-outlined text-[18px]">photo_camera</span>
@@ -187,7 +187,6 @@ export function ImageUpload() {
         </div>
       )}
 
-      {/* Hidden inputs */}
       <input
         ref={fileInputRef}
         type="file"
@@ -196,14 +195,13 @@ export function ImageUpload() {
         onChange={onFileChange}
         disabled={busy}
       />
-      <input
-        ref={cameraInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="sr-only"
-        onChange={onFileChange}
-        disabled={busy}
+
+      <ImageCaptureDialog
+        open={captureDialogOpen}
+        onClose={() => setCaptureDialogOpen(false)}
+        onFile={(f) => void handleFile(f)}
+        busy={busy}
+        title="Take a photo"
       />
 
       {error && (
@@ -222,5 +220,55 @@ async function fileToDataUrl(file: File): Promise<string> {
     reader.onload = () => resolve(String(reader.result ?? ''))
     reader.onerror = () => reject(reader.error)
     reader.readAsDataURL(file)
+  })
+}
+
+/** Full data URL for small files; downscaled JPEG for large ones so handoff can keep a figure preview. */
+async function previewDataUrlForHandoff(file: File): Promise<string | null> {
+  if (file.size <= MAX_INLINE_PREVIEW_BYTES) {
+    return fileToDataUrl(file)
+  }
+  try {
+    return await downscaleImageToDataUrl(file, 960, 0.82)
+  } catch {
+    return null
+  }
+}
+
+function downscaleImageToDataUrl(
+  file: File,
+  maxDimension: number,
+  jpegQuality: number
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      let w = img.naturalWidth
+      let h = img.naturalHeight
+      if (w <= 0 || h <= 0) {
+        reject(new Error('invalid image dimensions'))
+        return
+      }
+      const scale = Math.min(1, maxDimension / Math.max(w, h))
+      w = Math.round(w * scale)
+      h = Math.round(h * scale)
+      const canvas = document.createElement('canvas')
+      canvas.width = w
+      canvas.height = h
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        reject(new Error('no canvas context'))
+        return
+      }
+      ctx.drawImage(img, 0, 0, w, h)
+      resolve(canvas.toDataURL('image/jpeg', jpegQuality))
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('image load failed'))
+    }
+    img.src = objectUrl
   })
 }

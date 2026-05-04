@@ -30,6 +30,11 @@ class ValidationVerdict:
     detected_concept: Optional[str]
     symbolic_form: str
     reason: str
+    # New currentStepIndex after applying this verdict. Equals the request's
+    # current_step_index when no advance happened.
+    advance_to: int = 0
+    # Canonical indices the student skipped but we credit as completed.
+    skipped_steps: Optional[list] = None
 
 
 @dataclass
@@ -50,6 +55,7 @@ def validate_step(
     new_step_latex: str,
     expected_final: str,
     canonical_steps: Iterable[dict],
+    current_step_index: int = 0,
 ) -> ValidationVerdict:
     new_parsed = parse_latex_safe(new_step_latex)
     new_expr = new_parsed.expr
@@ -58,36 +64,131 @@ def validate_step(
     canonical_list = list(canonical_steps)
     has_canonical = len(canonical_list) > 0
     has_final = bool(expected_final.strip())
+    n_total = len(canonical_list)
 
-    # 1. Identity-preserving transformation from the previous step?
-    if previous_latex.strip():
-        try:
-            prev_expr = parse_latex_safe(previous_latex).expr
-            if _expressions_equivalent(prev_expr, new_expr):
-                concept, matched_idx = _classify_against_canonical(new_expr, canonical_list)
+    # Clamp pointer defensively.
+    cur_idx = max(0, min(int(current_step_index), n_total))
+
+    # ─── Step-machine path: we have canonical steps to anchor against ──────
+    if has_canonical:
+        # 1. Try the current target step first (fast path).
+        if cur_idx < n_total:
+            target = canonical_list[cur_idx]
+            if _matches_canonical_entry(new_expr, target):
                 return ValidationVerdict(
                     status="correct",
-                    matched_canonical_step=matched_idx,
-                    detected_concept=concept,
+                    matched_canonical_step=target.get("index", cur_idx),
+                    detected_concept=target.get("concept_tag"),
                     symbolic_form=symbolic_form,
-                    reason="valid_algebraic_transformation",
+                    reason="matched_current_step",
+                    advance_to=cur_idx + 1,
+                    skipped_steps=[],
                 )
-        except LatexParseError:
-            # If we can't parse the previous step we can still check canonical/final match.
-            pass
 
-    # 2. Match against any canonical expected expression.
-    concept, matched_idx = _classify_against_canonical(new_expr, canonical_list)
-    if matched_idx is not None:
+        # 2. Scan forward for skip-ahead. Match the *furthest* future step the
+        #    student's expression satisfies — that maximizes credit while
+        #    keeping the pointer monotonic.
+        matched_future: Optional[int] = None
+        matched_concept: Optional[str] = None
+        for j in range(cur_idx + 1, n_total):
+            entry = canonical_list[j]
+            if _matches_canonical_entry(new_expr, entry):
+                matched_future = j
+                matched_concept = entry.get("concept_tag")
+
+        if matched_future is not None:
+            if not _forward_skip_derivable(
+                previous_latex,
+                new_expr,
+                cur_idx,
+                matched_future,
+            ):
+                target_concept = (
+                    canonical_list[cur_idx].get("concept_tag")
+                    if cur_idx < n_total
+                    else None
+                )
+                return ValidationVerdict(
+                    status="incorrect",
+                    matched_canonical_step=None,
+                    detected_concept=target_concept,
+                    symbolic_form=symbolic_form,
+                    reason="skip_not_derivable",
+                    advance_to=cur_idx,
+                    skipped_steps=[],
+                )
+            skipped = list(range(cur_idx, matched_future))
+            return ValidationVerdict(
+                status="correct",
+                matched_canonical_step=canonical_list[matched_future].get(
+                    "index", matched_future
+                ),
+                detected_concept=matched_concept,
+                symbolic_form=symbolic_form,
+                reason="matched_future_step",
+                advance_to=matched_future + 1,
+                skipped_steps=skipped,
+            )
+
+        # 3. Match against the final answer → solve everything.
+        if has_final:
+            try:
+                final_expr = parse_latex_safe(expected_final).expr
+                if _expressions_equivalent(new_expr, final_expr):
+                    skipped = list(range(cur_idx, n_total))
+                    return ValidationVerdict(
+                        status="correct",
+                        matched_canonical_step=None,
+                        detected_concept="final_answer",
+                        symbolic_form=symbolic_form,
+                        reason="matched_final_answer",
+                        advance_to=n_total,
+                        skipped_steps=skipped,
+                    )
+            except LatexParseError:
+                pass
+
+        # 4. Identity-preserving rewrite of previous_latex against the *current*
+        #    target — accept as a stylistic step that doesn't actually advance.
+        #    Mark equivalent_to_earlier so the hint nudges them onward.
+        if previous_latex.strip():
+            try:
+                prev_expr = parse_latex_safe(previous_latex).expr
+                if _expressions_equivalent(prev_expr, new_expr):
+                    return ValidationVerdict(
+                        status="equivalent_to_earlier",
+                        matched_canonical_step=None,
+                        detected_concept=None,
+                        symbolic_form=symbolic_form,
+                        reason="restated_previous",
+                        advance_to=cur_idx,
+                        skipped_steps=[],
+                    )
+            except LatexParseError:
+                pass
+
+        # 5. Incorrect — heuristic reason against the *current* target.
+        target_for_diag = (
+            [canonical_list[cur_idx]] if cur_idx < n_total else canonical_list
+        )
+        reason = _diagnose_incorrect(new_expr, target_for_diag)
+        target_concept = (
+            canonical_list[cur_idx].get("concept_tag")
+            if cur_idx < n_total
+            else None
+        )
         return ValidationVerdict(
-            status="correct",
-            matched_canonical_step=matched_idx,
-            detected_concept=concept,
+            status="incorrect",
+            matched_canonical_step=None,
+            detected_concept=target_concept,
             symbolic_form=symbolic_form,
-            reason="matched_canonical_step",
+            reason=reason,
+            advance_to=cur_idx,
+            skipped_steps=[],
         )
 
-    # 3. Match against the final answer.
+    # ─── Lenient mode (no canonical steps; OCR-imported problems) ─────────
+    # 1. Final-answer match → solve.
     if has_final:
         try:
             final_expr = parse_latex_safe(expected_final).expr
@@ -98,15 +199,13 @@ def validate_step(
                     detected_concept="final_answer",
                     symbolic_form=symbolic_form,
                     reason="matched_final_answer",
+                    advance_to=1,
+                    skipped_steps=[],
                 )
         except LatexParseError:
             pass
 
-    # 4. Lenient mode for unscaffolded problems: if there's no canonical solution
-    #    AND no expected final answer (e.g. OCR-imported user problems), we have
-    #    nothing to compare against. Accept the step only if it has mathematical
-    #    substance (contains a number, a trig function, or a known variable).
-    #    Pure garbage symbols like "totheID" are rejected as unparseable.
+    # 2. No canonical and no final — accept anything with math substance.
     if not has_canonical and not has_final:
         if not _has_math_substance(new_expr):
             return ValidationVerdict(
@@ -115,6 +214,8 @@ def validate_step(
                 detected_concept=None,
                 symbolic_form=symbolic_form,
                 reason="no_mathematical_content",
+                advance_to=cur_idx,
+                skipped_steps=[],
             )
         return ValidationVerdict(
             status="correct",
@@ -122,17 +223,41 @@ def validate_step(
             detected_concept="exploratory",
             symbolic_form=symbolic_form,
             reason="exploratory_no_canonical_reference",
+            # Stay on the single placeholder step — open-ended OCR has no target
+            # index to advance toward; solved is driven by finalAnswer when present.
+            advance_to=cur_idx,
+            skipped_steps=[],
         )
 
-    # 5. Otherwise, incorrect — attach a heuristic reason.
-    reason = _diagnose_incorrect(new_expr, canonical_list)
+    # 3. Has final but didn't match → incorrect.
     return ValidationVerdict(
         status="incorrect",
         matched_canonical_step=None,
-        detected_concept=concept,
+        detected_concept=None,
         symbolic_form=symbolic_form,
-        reason=reason,
+        reason="did_not_match_final_answer",
+        advance_to=cur_idx,
+        skipped_steps=[],
     )
+
+
+def _matches_canonical_entry(new_expr, entry: dict) -> bool:
+    """True if `new_expr` is symbolically equivalent to the entry's expected
+    expression OR any of its acceptable_forms."""
+    try:
+        expected = parse_latex_safe(entry["expected_expression"]).expr
+        if _expressions_equivalent(new_expr, expected):
+            return True
+    except LatexParseError:
+        pass
+    for form in entry.get("acceptable_forms", []) or []:
+        try:
+            alt = parse_latex_safe(form).expr
+        except LatexParseError:
+            continue
+        if _expressions_equivalent(new_expr, alt):
+            return True
+    return False
 
 
 def check_equivalent(latex_a: str, latex_b: str) -> EquivalenceResult:
@@ -209,7 +334,9 @@ def _diagnose_incorrect(new_expr: Expr, canonical_steps: Iterable[dict]) -> str:
         except LatexParseError:
             continue
         try:
-            if _difference_is_zero(new_expr + expected):
+            er = _algebraic_residual(new_expr)
+            xr = _algebraic_residual(expected)
+            if _difference_is_zero(er + xr):
                 return "sign_error"
             if _sin_cos_swapped(new_expr, expected):
                 return "swapped_sin_cos"
@@ -234,6 +361,75 @@ def _difference_is_zero(diff: Expr) -> bool:
         return False
 
 
+def _algebraic_residual(expr: Expr) -> Expr:
+    """Map equations to a single expression so Eq − Eq is defined (lhs−rhs form).
+
+    SymPy does not define subtraction between two Relational objects; normalize
+    first so difference checks match `_expressions_equivalent` behavior.
+    """
+    if isinstance(expr, Relational):
+        return expr.lhs - expr.rhs
+    return expr
+
+
+def _residual_difference_is_zero(a: Expr, b: Expr) -> bool:
+    """True if `a` and `b` differ only by an identity after normalization."""
+    try:
+        return _difference_is_zero(_algebraic_residual(a) - _algebraic_residual(b))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _forward_skip_derivable(
+    previous_latex: str,
+    new_expr: Expr,
+    cur_idx: int,
+    matched_future: int,
+) -> bool:
+    """Reject obvious 'paste a later step' leaps that share nothing with prior work.
+
+    Single-step skip-ahead (matched_future == cur_idx + 1) is always allowed.
+    For larger gaps, require either an explicit algebraic link to previous_latex
+    or overlapping structure (symbols / function heads) so unrelated matches are
+    less likely to receive credit.
+    """
+    gap = matched_future - cur_idx
+    if gap < 2:
+        return True
+    if not previous_latex.strip():
+        return True
+    try:
+        prev_expr = parse_latex_safe(previous_latex).expr
+    except LatexParseError:
+        return True
+    if _expressions_equivalent(prev_expr, new_expr):
+        # Same statement as before — not a suspicious pasted leap.
+        return True
+    if _residual_difference_is_zero(new_expr, prev_expr):
+        return True
+    return _leap_shares_structure(prev_expr, new_expr)
+
+
+def _leap_shares_structure(prev: Expr, new: Expr) -> bool:
+    """True when new_expr plausibly continues from prev (shared symbols or trig)."""
+    try:
+        pfs = prev.free_symbols
+        nfs = new.free_symbols
+        if pfs and nfs and (pfs & nfs):
+            return True
+        prev_funcs: set = set()
+        new_funcs: set = set()
+        for node in sympy.preorder_traversal(prev):
+            if isinstance(node, sympy.Function):
+                prev_funcs.add(node.func)
+        for node in sympy.preorder_traversal(new):
+            if isinstance(node, sympy.Function):
+                new_funcs.add(node.func)
+        return bool(prev_funcs & new_funcs)
+    except Exception:  # noqa: BLE001
+        return True
+
+
 def _sin_cos_swapped(a: Expr, b: Expr) -> bool:
     try:
         temp_fn = sympy.Function("__tmp_trig__")
@@ -249,7 +445,9 @@ def _sin_cos_swapped(a: Expr, b: Expr) -> bool:
             lambda expr: isinstance(expr, Expr) and expr.func == temp_fn,
             lambda expr: sympy.cos(expr.args[0]),
         )
-        return _difference_is_zero(a_swapped - b)
+        return _difference_is_zero(
+            _algebraic_residual(a_swapped) - _algebraic_residual(b)
+        )
     except Exception:  # noqa: BLE001
         return False
 

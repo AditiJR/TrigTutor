@@ -1,8 +1,11 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { InlineMath } from 'react-katex'
+import { ImageCaptureDialog } from '@/components/ImageCaptureDialog'
 import 'katex/dist/katex.min.css'
+
+const MAX_FILE_BYTES = 8 * 1024 * 1024
 
 interface Props {
   onLatexReady: (latex: string) => void
@@ -16,14 +19,19 @@ type State =
   | { type: 'error'; message: string }
 
 export function HandwrittenStepInput({ onLatexReady, disabled }: Props) {
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [state, setState] = useState<State>({ type: 'idle' })
   const [editedLatex, setEditedLatex] = useState('')
+  const [captureDialogOpen, setCaptureDialogOpen] = useState(false)
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
+  const processStepImage = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setState({ type: 'error', message: 'Please use a PNG, JPEG, or WEBP image.' })
+      return
+    }
+    if (file.size > MAX_FILE_BYTES) {
+      setState({ type: 'error', message: 'That image is too large — try one under 8 MB.' })
+      return
+    }
 
     setState({ type: 'loading' })
 
@@ -81,19 +89,9 @@ export function HandwrittenStepInput({ onLatexReady, disabled }: Props) {
 
   return (
     <div className="relative">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="sr-only"
-        aria-hidden="true"
-        onChange={handleFileChange}
-      />
-
       <button
         type="button"
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => !disabled && state.type !== 'loading' && setCaptureDialogOpen(true)}
         disabled={disabled || state.type === 'loading'}
         title="Photograph your handwritten step"
         aria-label="Upload photo of handwritten step"
@@ -107,7 +105,14 @@ export function HandwrittenStepInput({ onLatexReady, disabled }: Props) {
         {state.type === 'loading' ? 'Reading…' : 'Photo'}
       </button>
 
-      {/* Inline confirmation / error strip */}
+      <ImageCaptureDialog
+        open={captureDialogOpen}
+        onClose={() => setCaptureDialogOpen(false)}
+        onFile={(f) => void processStepImage(f)}
+        busy={state.type === 'loading'}
+        title="Photograph your step"
+      />
+
       {showStrip && (
         <div className="absolute bottom-full mb-2 left-0 min-w-[280px] max-w-[360px] bg-surface border border-outline rounded-lg shadow-lg p-3 z-20">
           {state.type === 'error' ? (
@@ -152,7 +157,6 @@ export function HandwrittenStepInput({ onLatexReady, disabled }: Props) {
             <>
               <p className="font-body-sm text-body-sm text-secondary mb-2">Is this right?</p>
 
-              {/* KaTeX preview */}
               <div className="bg-surface-container-low rounded px-3 py-2 mb-2 text-center overflow-x-auto min-h-[40px] flex items-center justify-center">
                 {editedLatex.trim() ? (
                   <InlineMath math={editedLatex} />
@@ -161,7 +165,6 @@ export function HandwrittenStepInput({ onLatexReady, disabled }: Props) {
                 )}
               </div>
 
-              {/* Editable LaTeX field */}
               <input
                 type="text"
                 value={editedLatex}

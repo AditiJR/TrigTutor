@@ -1,9 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { MixedMath } from '@/components/MixedMath'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FeedbackBubble } from '@/components/FeedbackBubble'
 import { HandwrittenStepInput } from '@/components/HandwrittenStepInput'
+import { MixedMath } from '@/components/MixedMath'
 import { MathInput } from '@/components/MathInput'
 import { MultipleChoice } from '@/components/MultipleChoice'
 import { StepList } from '@/components/StepList'
@@ -79,11 +80,18 @@ export default function SolvePage({ params }: Props) {
     )
   }
 
-  return <SolveProblemShell problem={problem} />
+  return <SolveProblemShell key={problem.id} problem={problem} />
 }
 
 function SolveProblemShell({ problem }: { problem: Problem }) {
-  const { session, submitStep, isSubmitting, loadingHintStepId } = useSolveSession(problem)
+  const {
+    session,
+    submitStep,
+    isSubmitting,
+    loadingHintStepId,
+    lastFeedback,
+    initialHintLoaded
+  } = useSolveSession(problem)
   const bottomRef = useRef<HTMLDivElement>(null)
   const mainRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -97,15 +105,14 @@ function SolveProblemShell({ problem }: { problem: Problem }) {
   }, [session.steps.length, loadingHintStepId])
 
   // Shrink container when keyboard appears so content reflows above keyboard
-  const handleKeyboardVisibilityChange = (visible: boolean, height: number) => {
+  const handleKeyboardVisibilityChange = useCallback((visible: boolean, height: number) => {
     setKeyboardHeight(visible ? height : 0)
     if (visible) {
-      // After reflow, scroll to bottom so latest step stays visible
       setTimeout(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
       }, 160)
     }
-  }
+  }, [])
 
   const topicLabel = problem.topic.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 
@@ -138,11 +145,26 @@ function SolveProblemShell({ problem }: { problem: Problem }) {
       <div className="flex flex-1 overflow-hidden">
 
         {/* LEFT — Problem panel (fixed, doesn't scroll) */}
-        <aside className="w-[340px] shrink-0 border-r border-border-subtle bg-surface-container-low flex flex-col p-6 gap-6 overflow-y-auto">
-          <div>
-            <p className="font-label text-label text-secondary uppercase tracking-wider mb-3">Problem</p>
-            <p className="font-body text-body text-on-surface mb-4">{problem.title}</p>
-            <div className="bg-surface rounded-lg border border-border-subtle shadow-sm p-6 flex items-center justify-center min-h-[100px]">
+        <aside className="flex w-[340px] min-w-0 shrink-0 flex-col gap-6 overflow-y-auto overflow-x-hidden border-r border-border-subtle bg-surface-container-low p-6">
+          <div className="min-w-0 max-w-full">
+            <p className="mb-3 font-label text-label uppercase tracking-wider text-secondary">Problem</p>
+            <p className="mb-4 min-w-0 max-w-full break-words font-body text-body text-on-surface [overflow-wrap:anywhere]">
+              {problem.title}
+            </p>
+            {problem.sourceImageDataUrl ? (
+              <div className="mb-4 min-w-0 max-w-full overflow-hidden rounded-lg border border-border-subtle bg-surface shadow-sm">
+                <p className="border-b border-border-subtle bg-surface-container-low px-3 py-2 font-label text-label text-secondary">
+                  Original figure
+                </p>
+                {/* eslint-disable-next-line @next/next/no-img-element -- data URL from local OCR handoff */}
+                <img
+                  src={problem.sourceImageDataUrl}
+                  alt="Diagram from your uploaded problem"
+                  className="max-h-[min(40vh,320px)] w-full object-contain bg-surface-container-low"
+                />
+              </div>
+            ) : null}
+            <div className="min-h-[100px] min-w-0 max-w-full overflow-hidden rounded-lg border border-border-subtle bg-surface p-4 shadow-sm sm:p-6">
               <MixedMath text={problem.latex} block />
             </div>
           </div>
@@ -154,13 +176,30 @@ function SolveProblemShell({ problem }: { problem: Problem }) {
           {/* Scrollable step history */}
           <main ref={mainRef} className="flex-1 overflow-y-auto p-stack-md flex flex-col gap-stack-md scroll-smooth">
             {session.steps.length === 0 && !session.solved && (
-              <div className="flex flex-col items-center justify-center py-12 gap-3 text-secondary">
-                <span className="material-symbols-outlined text-3xl">edit_note</span>
-                <p className="font-body-sm text-body-sm italic">Write your first step below to begin.</p>
+              <div className="flex flex-col items-center justify-center py-12 gap-stack-md text-secondary max-w-lg mx-auto w-full">
+                {!initialHintLoaded && (
+                  <div className="flex items-center gap-2 text-secondary">
+                    <span className="material-symbols-outlined animate-spin text-2xl">refresh</span>
+                    <span className="font-body text-body">Loading tutor hint…</span>
+                  </div>
+                )}
+                {lastFeedback && <FeedbackBubble feedback={lastFeedback} />}
+                <div className="flex flex-col items-center gap-3 pt-2">
+                  <span className="material-symbols-outlined text-3xl">edit_note</span>
+                  <p className="font-body-sm text-body-sm italic text-center">
+                    Write your first step below to begin.
+                  </p>
+                </div>
               </div>
             )}
 
-            <StepList steps={session.steps} loadingStepId={loadingHintStepId ?? undefined} />
+            {(session.steps.length > 0 || session.solved) && (
+              <StepList
+                steps={session.steps}
+                loadingStepId={loadingHintStepId ?? undefined}
+                sessionSolved={session.solved}
+              />
+            )}
 
             {session.solved && (
               <div className="bg-correct/10 border border-correct/20 rounded-lg p-stack-md flex items-center gap-3 text-correct">

@@ -109,7 +109,8 @@ function ConfirmOcrContent() {
       difficulty: 'practice',
       canonicalSteps,
       finalAnswer,
-      diagram: handoff?.diagram ?? null
+      diagram: handoff?.diagram ?? null,
+      sourceImageDataUrl: handoff?.imageDataUrl ?? null
     }
     saveCustomProblem(customProblem)
     if (handoff) clearOcrHandoff(handoff.id)

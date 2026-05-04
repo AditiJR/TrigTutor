@@ -131,7 +131,7 @@ export function MathInput({
       mvk.removeEventListener('virtual-keyboard-toggle', sync)
       mvk.removeEventListener('geometrychange', sync)
     }
-  }, [mathliveLoaded])
+  }, [mathliveLoaded, onKeyboardVisibilityChange])
 
 
   // Inject LaTeX from external source (e.g. handwritten OCR result).
@@ -183,6 +183,23 @@ export function MathInput({
     }
   }, [value, disabled, onSubmit, inputMode])
 
+  // Plain Enter submits in math mode (MathLive step field is single-line here).
+  useEffect(() => {
+    if (!mathliveLoaded || inputMode !== 'math') return
+    const field = fieldRef.current
+    if (!field) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter') return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      if (e.isComposing) return
+      e.preventDefault()
+      e.stopPropagation()
+      handleSubmit()
+    }
+    field.addEventListener('keydown', onKeyDown)
+    return () => field.removeEventListener('keydown', onKeyDown)
+  }, [mathliveLoaded, inputMode, handleSubmit])
+
   const switchMode = (mode: InputMode) => {
     setInputMode(mode)
     setValue('')
@@ -200,7 +217,7 @@ export function MathInput({
     }
   }
 
-  // Cmd/Ctrl+Enter to submit — use native listener so it doesn't interfere with MathLive
+  // Cmd/Ctrl+Enter still submits from anywhere (backup when focus is outside the field).
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -275,6 +292,12 @@ export function MathInput({
               ref={textareaRef}
               value={value}
               onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
+                if (e.shiftKey) return
+                e.preventDefault()
+                handleSubmit()
+              }}
               placeholder={placeholder ?? 'Type your step, e.g. 4^2 + x^2 = 5^2'}
               rows={2}
               className="w-full resize-none bg-transparent outline-none border-none px-4 py-3 font-mono text-base text-on-surface placeholder:text-secondary"

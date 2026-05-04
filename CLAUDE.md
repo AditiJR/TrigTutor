@@ -596,3 +596,6 @@ write `1/√2` where the problem expected `√2/2`, and the system correctly acc
 | `trigsimp()` not `simplify()` | SymPy needs the trig-specific simplifier to recognize identities like sin²+cos²=1 |
 | `X-Session-Id` header for per-session limits (MVP) | Enables deterministic per-session request caps in API routes without introducing auth/user accounts |
 | OCR-imported problems stored in browser localStorage (MVP) | Preserves the mandatory OCR confirmation → solve flow without adding a backend persistence layer yet |
+| Forward skip-ahead + `skip_not_derivable` heuristic | Multi-step skips must share symbols or function heads with `previous_latex`, or be an identity from it; single-step skip is always allowed. Blocks pasted late canonical lines with no link to prior work. |
+| OCR solve sessions send real `canonicalSteps` / `finalAnswer` to `/api/validate` | When `/api/generate-steps` succeeds on confirm-ocr, stripping them for `ocr-*` ids prevented SymPy from using that path; Python already chooses lenient mode when lists are empty. |
+| `sourceImageDataUrl` on imported `Problem` | OCR only stored LaTeX + structured `diagram` JSON; the raster was dropped after confirm. Persisting a data URL (full or downscaled) lets the solve page show **Original figure** beside KaTeX. |

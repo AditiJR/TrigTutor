@@ -31,6 +31,7 @@ export async function validateStep(
       previous_latex: req.previousLatex,
       new_step_latex: req.newStepLatex,
       expected_final: req.expectedFinalAnswer,
+      current_step_index: req.currentStepIndex ?? 0,
       canonical_steps: canonicalSteps.map((s) => ({
         index: s.index,
         description: s.description,
@@ -51,13 +52,18 @@ export async function validateStep(
     detected_concept: string | null
     symbolic_form: string
     reason: string
+    advance_to?: number
+    skipped_steps?: number[]
   }
 
+  const cur = req.currentStepIndex ?? 0
   return {
     status: data.status,
     matchedCanonicalStep: data.matched_canonical_step,
     detectedConcept: data.detected_concept,
     symbolicForm: data.symbolic_form,
-    reason: data.reason
+    reason: data.reason,
+    advanceTo: typeof data.advance_to === 'number' ? data.advance_to : cur,
+    skippedSteps: Array.isArray(data.skipped_steps) ? data.skipped_steps : []
   }
 }

@@ -1,5 +1,9 @@
 import Anthropic, { APIError } from '@anthropic-ai/sdk'
-import { SOCRATIC_HINT_SYSTEM_PROMPT, buildHintUserPrompt } from './prompts'
+import {
+  SOCRATIC_HINT_SYSTEM_PROMPT,
+  buildHintUserPrompt,
+  buildInitialHintUserPrompt
+} from './prompts'
 import type { HintRequest, HintResult, Problem } from './types'
 
 const MODEL = 'claude-sonnet-4-5'
@@ -77,7 +81,13 @@ export async function generateSocraticHint(
   const client = getClient()
   if (!client) return stubHint(req)
 
-  const userPrompt = buildHintUserPrompt(req.problem, req.allSteps, req.newStep)
+  const isInitial = req.kind === 'initial' || !req.newStep
+  const userPrompt = isInitial
+    ? buildInitialHintUserPrompt(req.problem, req.currentStepIndex ?? 0)
+    : buildHintUserPrompt(req.problem, req.allSteps, req.newStep!, {
+        currentStepIndex: req.currentStepIndex,
+        skippedSteps: req.skippedSteps
+      })
 
   let response
   try {
@@ -124,6 +134,17 @@ function extractJson(text: string): string {
  * involved so the student gets something more useful than "take another look."
  */
 function stubHint(req: HintRequest): HintResult {
+  // Initial-hint mode: no validation, no student step yet.
+  if (req.kind === 'initial' || !req.newStep) {
+    const target =
+      req.problem.canonicalSteps[req.currentStepIndex ?? 0] ?? null
+    return {
+      socraticHint: buildInitialStubHint(req.problem, target?.conceptTag ?? null),
+      encouragement: "Let's get started.",
+      conceptToReview: target?.conceptTag ?? null
+    }
+  }
+
   const validation = req.newStep.validation
   const status = validation?.status ?? 'unknown'
   const reason = validation?.reason ?? ''
@@ -158,6 +179,31 @@ function stubHint(req: HintRequest): HintResult {
     encouragement: 'No worries — try rephrasing.',
     conceptToReview: concept
   }
+}
+
+function buildInitialStubHint(problem: Problem, concept: string | null): string {
+  if (problem.topic === 'special_angles') {
+    return 'What special triangle does the angle in this problem belong to, and what ratio does it give?'
+  }
+  if (problem.topic === 'pythagorean_identity') {
+    return 'Which trig identity connects the quantities in this problem?'
+  }
+  if (problem.topic === 'unit_circle') {
+    return 'Which quadrant is this angle in, and what coordinate are you reading off?'
+  }
+  if (problem.topic === 'solving_equations') {
+    return 'What is the first operation you can do to start isolating the variable?'
+  }
+  if (problem.topic === 'sin_cos_tan') {
+    return 'Which sides do you know, and which trig ratio (SOH, CAH, or TOA) connects them to the angle?'
+  }
+  if (problem.topic === 'inverse_functions') {
+    return 'What angle has the trig value the problem is giving you?'
+  }
+  if (concept) {
+    return `Where could you start by thinking about ${concept.replace(/_/g, ' ')}?`
+  }
+  return 'What is the first thing the problem is asking you to find — and which rule connects what you know to it?'
 }
 
 function buildCorrectHint(

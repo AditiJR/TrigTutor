@@ -61,6 +61,7 @@ class ValidateRequest(BaseModel):
     new_step_latex: str
     expected_final: str
     canonical_steps: List[CanonicalStepIn] = Field(default_factory=list)
+    current_step_index: int = 0
 
 
 class ValidateResponse(BaseModel):
@@ -69,6 +70,8 @@ class ValidateResponse(BaseModel):
     detected_concept: Optional[str] = None
     symbolic_form: str
     reason: str
+    advance_to: int = 0
+    skipped_steps: List[int] = Field(default_factory=list)
 
 
 class EquivalentRequest(BaseModel):
@@ -156,6 +159,7 @@ def validate(
             new_step_latex=body.new_step_latex,
             expected_final=body.expected_final,
             canonical_steps=[s.model_dump() for s in body.canonical_steps],
+            current_step_index=body.current_step_index,
         )
     except LatexParseError as exc:
         logger.info("Unparseable input: %s", exc)
@@ -165,6 +169,8 @@ def validate(
             detected_concept=None,
             symbolic_form="",
             reason=str(exc),
+            advance_to=body.current_step_index,
+            skipped_steps=[],
         )
 
     return ValidateResponse(
@@ -173,6 +179,8 @@ def validate(
         detected_concept=verdict.detected_concept,
         symbolic_form=verdict.symbolic_form,
         reason=verdict.reason,
+        advance_to=verdict.advance_to,
+        skipped_steps=verdict.skipped_steps or [],
     )
 
 

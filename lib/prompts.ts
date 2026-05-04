@@ -59,10 +59,32 @@ verdict = "unparseable":
   → Gently ask them to rewrite their step as a math expression.
 `.trim()
 
+export const buildInitialHintUserPrompt = (
+  problem: Problem,
+  currentStepIndex: number
+): string => {
+  const target = problem.canonicalSteps[currentStepIndex]
+  return `
+Problem: ${problem.latex}
+Topic: ${problem.topic}
+
+The student has not written any steps yet. Produce an OPENING Socratic question
+that orients them toward the FIRST move without revealing what the move is.
+
+${target ? `First-step concept: ${target.conceptTag}\nFirst-step description (DO NOT QUOTE): ${target.description}` : 'No canonical first step is known — ask a general orientation question.'}
+
+Verdict: initial
+PROBLEM_SOLVED: NO
+
+Respond ONLY in the required JSON format.
+`.trim()
+}
+
 export const buildHintUserPrompt = (
   problem: Problem,
   allSteps: Step[],
-  newStep: Step
+  newStep: Step,
+  context?: { currentStepIndex?: number; skippedSteps?: number[] }
 ): string => {
   const priorSteps = allSteps
     .slice(0, -1)
@@ -83,6 +105,22 @@ export const buildHintUserPrompt = (
       norm(stepLatex) === norm(problem.finalAnswer))
   const isTextAnnotation = !/[\\^_{$()\d]/.test(stepLatex) && !/[=+\-*/]/.test(stepLatex)
 
+  const cur = context?.currentStepIndex ?? null
+  const skipped = context?.skippedSteps ?? []
+  const activeStep =
+    cur !== null && cur >= 0 && cur < problem.canonicalSteps.length
+      ? problem.canonicalSteps[cur]
+      : null
+  const stepContextBlock = activeStep
+    ? `Now-active canonical step (${cur! + 1} of ${problem.canonicalSteps.length}): ${activeStep.description} [concept: ${activeStep.conceptTag}]`
+    : cur !== null && cur >= problem.canonicalSteps.length
+      ? `All canonical steps completed.`
+      : ''
+  const skipBlock =
+    skipped.length > 0
+      ? `Skip-ahead: student bypassed canonical step(s) ${skipped.map((i) => i + 1).join(', ')} — credit them and reinforce briefly without re-teaching.`
+      : ''
+
   return `
 Problem: ${problem.latex}
 Topic: ${problem.topic}
@@ -96,6 +134,8 @@ Step type: ${isTextAnnotation ? 'TEXT ANNOTATION (no math symbols)' : 'MATH EXPR
 Verdict: ${newStep.validation?.status ?? 'unknown'}
 Reason: ${newStep.validation?.reason ?? 'unknown'}
 Concept: ${newStep.validation?.detectedConcept ?? 'unknown'}
+${stepContextBlock}
+${skipBlock}
 PROBLEM_SOLVED: ${isSolved ? 'YES' : 'NO'}
 `.trim()
 }
